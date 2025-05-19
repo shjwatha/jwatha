@@ -1,5 +1,13 @@
 import streamlit as st
 from supabase import create_client, Client
+# التحقق من الجلسة
+if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
+    st.error("⚠️ يجب تسجيل الدخول أولاً.")
+    st.stop()
+
+if st.session_state.get("permissions") != "super_admin":
+    st.error("🚫 ليس لديك صلاحية للوصول إلى هذه الصفحة.")
+    st.stop()
 
 # الاتصال بـ Supabase
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
