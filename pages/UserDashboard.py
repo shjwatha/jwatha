@@ -101,7 +101,10 @@ def show_chat():
             ].index.tolist()
 
             for i in unread_indexes:
-                chat_sheet.update_cell(i + 2, 5, "✓")  # الصف +2 لأن الصف الأول للعناوين
+                for i in unread_indexes:
+                    message_id = chat_data.iloc[i]["id"]  # تأكد أن جدول chat يحتوي على عمود id
+                    supabase.table("chat").update({"read_by_receiver": "✓"}).eq("id", message_id).execute()
+
 
         # استخراج الرسائل بعد التحديث
         messages = chat_data[((chat_data["from"] == username) & (chat_data["to"] == selected_mentor)) |
@@ -121,7 +124,17 @@ def show_chat():
         if st.button("📨 إرسال الرسالة"):
             if new_msg.strip():
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                chat_sheet.append_row([timestamp, username, selected_mentor, new_msg, ""])
+                supabase.table("chat").insert({
+                    "timestamp": timestamp,
+                    "from": username,
+                    "to": selected_mentor,
+                    "message": new_msg,
+                    "read_by_receiver": ""
+                }).execute()
+
+
+
+
                 st.success("✅ تم إرسال الرسالة")
                 st.rerun()
             else:
@@ -155,8 +168,9 @@ with tabs[0]:
     refresh_button("refresh_tab1")
 
     # ===== تنبيه بالرسائل غير المقروءة =====
-    chat_sheet = spreadsheet.worksheet("chat")
-    chat_data = pd.DataFrame(chat_sheet.get_all_records())
+    chat_data_raw = supabase.table("chat").select("*").execute().data
+    chat_data = pd.DataFrame(chat_data_raw)
+
 
     if "read_by_receiver" in chat_data.columns:
         unread_msgs = chat_data[
