@@ -86,7 +86,10 @@ columns = [
 def refresh_button(key):
     if st.button("🔄 جلب المعلومات من قاعدة البيانات", key=key):
         st.cache_data.clear()
-        st.experimental_rerun()
+        if hasattr(st, "experimental_rerun"):
+            st.experimental_rerun()
+        else:
+            st.warning("دالة st.experimental_rerun غير مدعومة في هذا الإصدار من Streamlit.")
 
 # ===== دالة جلب بيانات التقييم من جدول evaluations =====
 @st.cache_data
@@ -419,5 +422,3 @@ with tabs[3]:
             }, inplace=True)
 
             st.dataframe(user_notes, use_container_width=True)
-
-
