@@ -36,7 +36,7 @@ if st.session_state["permissions"] != "user":
 username = st.session_state["username"]
 user_level = st.session_state["level"]
 
-# ===== جلب بيانات المستخدم والبيانات الإدارية =====
+# ===== جلب بيانات المستخدم والبيانات الإدارية من Supabase =====
 try:
     admin_response = supabase.table("admins")\
         .select("username, full_name, mentor")\
@@ -65,21 +65,21 @@ sp_row = next((row for row in admin_data if row["username"] == mentor_name), Non
 sp_name = sp_row.get("mentor") if sp_row else None
 
 # ===== تعريف الأعمدة المستخدمة في نموذج التقييم =====
-# يجب أن تتطابق هذه الأعمدة مع تصميم جدول evaluations في Supabase
+# تأكد من أن جدول evaluations في Supabase يحتوي على الأعمدة التالية بالإضافة إلى عمود "username"
 columns = [
-    "التاريخ",             # index 0
-    "التقييم 1",          # index 1
-    "التقييم 2",          # index 2
-    "التقييم 3",          # index 3
-    "التقييم 4",          # index 4
-    "التقييم 5",          # index 5
-    "السنن الرواتب",      # index 6 (عدد الصلوات المؤداة ضمن السنن)
-    "ورد الإمام",         # index 7
-    "قراءة آخر",          # index 8
-    "البند 1",           # index 9
-    "البند 2",           # index 10
-    "البند 3",           # index 11
-    "البند 4"            # index 12
+    "التاريخ",           # index 0
+    "التقييم 1",        # index 1
+    "التقييم 2",        # index 2
+    "التقييم 3",        # index 3
+    "التقييم 4",        # index 4
+    "التقييم 5",        # index 5
+    "السنن الرواتب",    # index 6 (عدد الصلوات المؤداة ضمن السنن)
+    "ورد الإمام",       # index 7
+    "قراءة آخر",        # index 8
+    "البند 1",         # index 9
+    "البند 2",         # index 10
+    "البند 3",         # index 11
+    "البند 4"          # index 12
 ]
 
 # ===== وظيفة التحديث وإعادة التحميل =====
@@ -95,7 +95,10 @@ def refresh_button(key):
 @st.cache_data
 def load_data():
     try:
-        response = supabase.table("evaluations").select("*").execute()
+        response = supabase.table("evaluations")\
+                    .select("*")\
+                    .eq("username", username)\
+                    .execute()
         data = response.data if response.data is not None else []
         df = pd.DataFrame(data)
         return df
@@ -123,13 +126,19 @@ def show_chat():
 
         # جلب بيانات الدردشة من جدول chat
         chat_response = supabase.table("chat").select("*").execute()
-        chat_data = pd.DataFrame(chat_response.data) if chat_response.data is not None else pd.DataFrame(columns=["timestamp", "from", "to", "message", "read_by_receiver"])
+        chat_data = pd.DataFrame(chat_response.data) if chat_response.data is not None else pd.DataFrame(
+            columns=["timestamp", "from", "to", "message", "read_by_receiver"])
+        
+        if chat_data.empty:
+            st.info("💬 لا توجد رسائل حالياً.")
+            return
+        
         required_columns = {"from", "to", "message", "timestamp"}
         if not required_columns.issubset(chat_data.columns):
-            st.warning("⚠️ لم يتم العثور على الأعمدة الصحيحة في بيانات الدردشة.")
+            st.warning("⚠️ الأعمدة الأساسية غير موجودة في بيانات الدردشة.")
             return
 
-        # تحديث حالة القراءة (نفرض وجود حقل "id" لتحديد كل رسالة)
+        # تحديث حالة القراءة (يفترض وجود حقل "id" في كل رسالة)
         unread_msgs = chat_data[
             (chat_data["from"] == selected_mentor) &
             (chat_data["to"] == username) &
@@ -300,17 +309,30 @@ with tabs[0]:
             else:
                 try:
                     date_str = selected_date.strftime("%Y-%m-%d")
-                    # تحويل قائمة القيم إلى قاموس باستخدام الأعمدة المعرفة
-                    # يُفترض أن عدد العناصر في values يساوي len(columns)
-                    record = {columns[i]: values[i] for i in range(len(values))}
+                    # تحقق من صحة عدد القيم ومطابقتها مع الأعمدة
+                    if len(values) != len(columns):
+                        st.error("❌ هناك خلل في إدخال البيانات. الرجاء التأكد من تعبئة كافة الحقول.")
+                        st.stop()
                     
-                    # البحث عن سجل موجود بنفس التاريخ
-                    existing_response = supabase.table("evaluations").select("*").eq("التاريخ", date_str).execute()
+                    # تحويل القائمة إلى قاموس وإضافة اسم المستخدم
+                    record = {columns[i]: values[i] for i in range(len(values))}
+                    record["username"] = username
+                    
+                    # البحث عن سجل موجود بنفس التاريخ واسم المستخدم
+                    existing_response = supabase.table("evaluations")\
+                        .select("*")\
+                        .eq("التاريخ", date_str)\
+                        .eq("username", username)\
+                        .execute()
                     existing_records = existing_response.data if existing_response.data is not None else []
                     
                     if existing_records:
                         # تحديث السجل الحالي
-                        supabase.table("evaluations").update(record).eq("التاريخ", date_str).execute()
+                        supabase.table("evaluations")\
+                            .update(record)\
+                            .eq("التاريخ", date_str)\
+                            .eq("username", username)\
+                            .execute()
                     else:
                         # إدخال سجل جديد
                         supabase.table("evaluations").insert(record).execute()
@@ -322,15 +344,12 @@ with tabs[0]:
                     if "Quota exceeded" in str(e) or "429" in str(e):
                         st.error("❌ لقد تجاوزت عدد المرات المسموح بها للاتصال بقاعدة البيانات.\n\nيرجى المحاولة مجددًا بعد دقيقة.")
                     else:
-                        st.error("❌ حدث خطأ أثناء حفظ البيانات. حاول لاحقًا.")
+                        st.error(f"❌ حدث خطأ أثناء حفظ البيانات: {str(e)}")
 
-# ===== التبويب الثاني المحادثات =====
+# ===== التبويب الثاني: المحادثات =====
 with tabs[1]:
     refresh_button("refresh_chat")
     show_chat()
-
-
-
 
 # ===== التبويب الثالث: تقارير المجموع =====
 with tabs[2]:
@@ -338,7 +357,11 @@ with tabs[2]:
     refresh_button("refresh_tab2")
 
     try:
-        df = pd.DataFrame(worksheet.get_all_records())
+        evaluations_response = supabase.table("evaluations")\
+                                    .select("*")\
+                                    .eq("username", username)\
+                                    .execute()
+        df = pd.DataFrame(evaluations_response.data) if evaluations_response.data is not None else pd.DataFrame()
     except Exception as e:
         if "Quota exceeded" in str(e) or "429" in str(e):
             st.error("❌ لقد تجاوزت عدد المرات المسموح بها للاتصال بقاعدة البيانات.\n\nيرجى المحاولة مجددًا بعد دقيقة.")
@@ -347,12 +370,13 @@ with tabs[2]:
         st.stop()
 
     if "التاريخ" not in df.columns:
-        st.warning("⚠️ لا توجد بيانات بعد في ورقة هذا المستخدم. الرجاء البدء بإدخال أول تقييم.")
+        st.warning("⚠️ لا توجد بيانات بعد في جدول التقييمات. الرجاء البدء بإدخال أول تقييم.")
         st.stop()
 
     df["التاريخ"] = pd.to_datetime(df["التاريخ"], errors="coerce")
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
 
+    # إذا كانت هناك أعمدة إضافية للتقرير مثل "البند" و"المجموع" يتم التعامل معها هنا
     if "البند" in df.columns and "المجموع" in df.columns:
         df = df.dropna(subset=["البند", "المجموع"])
 
@@ -371,7 +395,7 @@ with tabs[2]:
     if filtered.empty:
         st.warning("⚠️ لا توجد بيانات في الفترة المحددة.")
     else:
-        # 🔧 تحويل جميع الأعمدة الرقمية والتعامل مع القيم الفارغة
+        # تحويل جميع الأعمدة الرقمية والتعامل مع القيم الفارغة
         for col in filtered.columns:
             filtered[col] = pd.to_numeric(filtered[col], errors="coerce").fillna(0)
 
@@ -391,26 +415,26 @@ with tabs[2]:
 
         st.markdown(result_df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-    
 # ===== التبويب الرابع: الإنجازات =====
 with tabs[3]:
     st.title("🗒️ الإنجازات")
-
     refresh_button("refresh_notes")
 
     try:
-        notes_sheet = spreadsheet.worksheet("notes")
-        notes_data = pd.DataFrame(notes_sheet.get_all_records())
+        notes_response = supabase.table("notes")\
+                            .select("*")\
+                            .eq("الطالب", username)\
+                            .execute()
+        notes_data = pd.DataFrame(notes_response.data) if notes_response.data is not None else pd.DataFrame()
     except Exception as e:
-        st.error("❌ تعذر تحميل ورقة الملاحظات.")
+        st.error("❌ تعذر تحميل بيانات الملاحظات.")
         st.stop()
 
     if notes_data.empty or "الطالب" not in notes_data.columns:
         st.info("📭 لا توجد ملاحظات حتى الآن.")
     else:
-        # تصفية الملاحظات الخاصة بالطالب الحالي
+        # إذا كانت هناك سجلات للمستخدم الحالي
         user_notes = notes_data[notes_data["الطالب"] == username]
-
         if user_notes.empty:
             st.warning("📭 لا توجد ملاحظات مسجلة لك حتى الآن.")
         else:
@@ -420,5 +444,4 @@ with tabs[3]:
                 "المشرف": "👤 المشرف",
                 "الملاحظة": "📝 الملاحظة"
             }, inplace=True)
-
             st.dataframe(user_notes, use_container_width=True)
