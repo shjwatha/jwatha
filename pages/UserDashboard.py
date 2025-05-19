@@ -17,9 +17,10 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 # ===== إعداد الصفحة =====
 st.set_page_config(page_title="تقييم اليوم", page_icon="📋", layout="wide")
 
+
 # ===== تحقق من صلاحية المستخدم =====
 if "username" not in st.session_state or "level" not in st.session_state:
-    st.error("\u274c يجب تسجيل الدخول أولاً.")
+    st.error("❌ يجب تسجيل الدخول أولاً.")
     st.stop()
 
 if st.session_state["permissions"] != "user":
@@ -30,7 +31,7 @@ if st.session_state["permissions"] != "user":
         st.warning(" تم تسجيل الدخول كمشرف، سيتم تحويلك للتقارير...")
         st.switch_page("pages/Supervisor.py")
     else:
-        st.error("\u26a0\ufe0f صلاحية غير معروفة.")
+        st.error("⚠️ صلاحية غير معروفة.")
     st.stop()
 
 username = st.session_state["username"]
@@ -41,11 +42,11 @@ try:
     admin_data = supabase.table("admins").select("username, full_name, mentor").eq("level", user_level).execute().data
     user_data = supabase.table("users").select("*").eq("username", username).eq("level", user_level).execute().data
     if not user_data:
-        st.error("\u274c لم يتم العثور على بيانات هذا المستخدم.")
+        st.error("❌ لم يتم العثور على بيانات هذا المستخدم.")
         st.stop()
     worksheet_data = user_data[0]
 except Exception as e:
-    st.error("\u274c حدث خطأ أثناء الاتصال بقاعدة البيانات. حاول مرة أخرى.")
+    st.error("❌ حدث خطأ أثناء الاتصال بقاعدة البيانات. حاول مرة أخرى.")
     st.stop()
 
 # ===== جلب اسم المشرف والسوبر مشرف =====
@@ -55,7 +56,7 @@ sp_name = sp_row["mentor"] if sp_row else None
 
 # ===== تعريف الوظائف =====
 def refresh_button(key):
-    if st.button("\ud83d\udd04 جلب المعلومات من قاعدة البيانات", key=key):
+    if st.button("🔄 جلب المعلومات من قاعدة البيانات", key=key):
         st.cache_data.clear()
         st.rerun()
 
