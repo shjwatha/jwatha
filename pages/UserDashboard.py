@@ -15,7 +15,7 @@ SUPABASE_SERVICE_KEY = st.secrets["SUPABASE_SERVICE_KEY"]
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 # ===== إعداد الصفحة =====
-st.set_page_config(page_title="تقييم اليوم", page_icon="\ud83d\udccb", layout="wide")
+st.set_page_config(page_title="تقييم اليوم", page_icon="📋", layout="wide")
 
 # ===== تحقق من صلاحية المستخدم =====
 if "username" not in st.session_state or "level" not in st.session_state:
