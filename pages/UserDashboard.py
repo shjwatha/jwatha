@@ -321,10 +321,13 @@ with tabs[0]:
                     else:
                         st.error("❌ حدث خطأ أثناء حفظ البيانات. حاول لاحقًا.")
 
-# ===== التبويب الثاني: المحادثات =====
+# ===== التبويب الثاني المحادثات =====
 with tabs[1]:
     refresh_button("refresh_chat")
     show_chat()
+
+
+
 
 # ===== التبويب الثالث: تقارير المجموع =====
 with tabs[2]:
@@ -332,19 +335,21 @@ with tabs[2]:
     refresh_button("refresh_tab2")
 
     try:
-        df = load_data()
+        df = pd.DataFrame(worksheet.get_all_records())
     except Exception as e:
-        st.error("❌ حدث خطأ أثناء تحميل البيانات. حاول لاحقًا.")
+        if "Quota exceeded" in str(e) or "429" in str(e):
+            st.error("❌ لقد تجاوزت عدد المرات المسموح بها للاتصال بقاعدة البيانات.\n\nيرجى المحاولة مجددًا بعد دقيقة.")
+        else:
+            st.error("❌ حدث خطأ أثناء تحميل البيانات. حاول لاحقًا.")
         st.stop()
 
     if "التاريخ" not in df.columns:
-        st.warning("⚠️ لا توجد بيانات بعد في جدول التقييمات. الرجاء البدء بإدخال أول تقييم.")
+        st.warning("⚠️ لا توجد بيانات بعد في ورقة هذا المستخدم. الرجاء البدء بإدخال أول تقييم.")
         st.stop()
 
     df["التاريخ"] = pd.to_datetime(df["التاريخ"], errors="coerce")
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
 
-    # إذا كانت هناك أعمدة محددة للتقرير مثل "البند" و"المجموع"
     if "البند" in df.columns and "المجموع" in df.columns:
         df = df.dropna(subset=["البند", "المجموع"])
 
@@ -363,7 +368,7 @@ with tabs[2]:
     if filtered.empty:
         st.warning("⚠️ لا توجد بيانات في الفترة المحددة.")
     else:
-        # تحويل جميع الأعمدة الرقمية والتعامل مع القيم الفارغة
+        # 🔧 تحويل جميع الأعمدة الرقمية والتعامل مع القيم الفارغة
         for col in filtered.columns:
             filtered[col] = pd.to_numeric(filtered[col], errors="coerce").fillna(0)
 
@@ -383,22 +388,24 @@ with tabs[2]:
 
         st.markdown(result_df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
+    
 # ===== التبويب الرابع: الإنجازات =====
 with tabs[3]:
     st.title("🗒️ الإنجازات")
+
     refresh_button("refresh_notes")
 
     try:
-        notes_response = supabase.table("notes").select("*").execute()
-        notes_data = pd.DataFrame(notes_response.data) if notes_response.data is not None else pd.DataFrame()
+        notes_sheet = spreadsheet.worksheet("notes")
+        notes_data = pd.DataFrame(notes_sheet.get_all_records())
     except Exception as e:
-        st.error("❌ تعذر تحميل بيانات الملاحظات.")
+        st.error("❌ تعذر تحميل ورقة الملاحظات.")
         st.stop()
 
     if notes_data.empty or "الطالب" not in notes_data.columns:
         st.info("📭 لا توجد ملاحظات حتى الآن.")
     else:
-        # تصفية الملاحظات الخاصة بالمستخدم الحالي
+        # تصفية الملاحظات الخاصة بالطالب الحالي
         user_notes = notes_data[notes_data["الطالب"] == username]
 
         if user_notes.empty:
@@ -412,3 +419,5 @@ with tabs[3]:
             }, inplace=True)
 
             st.dataframe(user_notes, use_container_width=True)
+
+
