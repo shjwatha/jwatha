@@ -36,28 +36,9 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 @st.cache_data
 def load_data():
     try:
-        # استعلام لجلب بيانات من جدول "users" في Supabase
-        data = supabase.table("users").select("*").execute().data
-        if not data:
-            st.warning("⚠️ لا توجد بيانات في جدول المستخدمين.")
-            return []
-        return data
-    except Exception as e:
-        st.error(f"❌ حدث خطأ أثناء جلب البيانات: {e}")
-        return []
-
-# ===== جلب البيانات دون عرضها =====
-data = load_data()
-
 # ===== زر التحديث فقط =====
 if st.button("🔄 جلب المعلومات من قاعدة البيانات", key="refresh_top"):
     st.cache_data.clear()
     data = load_data()
     st.success("✅ تم جلب البيانات بنجاح")
 
-# ===== عرض البيانات =====
-if data:
-    df = pd.DataFrame(data)
-    st.dataframe(df)  # عرض البيانات في جدول Streamlit
-else:
-    st.error("❌ لم يتم العثور على أي بيانات لعرضها.")
