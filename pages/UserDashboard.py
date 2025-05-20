@@ -377,18 +377,26 @@ with tabs[2]:
     if "التاريخ" not in df.columns:
         st.warning("⚠️ لا توجد بيانات بعد في جدول التقييمات. الرجاء البدء بإدخال أول تقييم.")
         st.stop()
+        
     df["التاريخ"] = pd.to_datetime(df["التاريخ"], errors="coerce")
     df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+    
     col1, col2 = st.columns(2)
     with col1:
         start_date = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7))
     with col2:
         end_date = st.date_input("إلى تاريخ", datetime.today().date())
+        
     mask = (df["التاريخ"] >= pd.to_datetime(start_date)) & (df["التاريخ"] <= pd.to_datetime(end_date))
-    filtered = df[mask].drop(columns=["التاريخ"], errors="ignore")
+    
+    # استبعاد الأعمدة التي لا تخص التقييم (بيانات شخصية والتاريخ)
+    exclude_columns = ["id", "username", "level", "التاريخ"]
+    filtered = df[mask].drop(columns=exclude_columns, errors="ignore")
+    
     if filtered.empty:
         st.warning("⚠️ لا توجد بيانات في الفترة المحددة.")
     else:
+        # تحويل الأعمدة المتبقية إلى أرقام
         for col in filtered.columns:
             filtered[col] = pd.to_numeric(filtered[col], errors="coerce").fillna(0)
         totals = filtered.sum(numeric_only=True)
