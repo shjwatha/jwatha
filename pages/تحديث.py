@@ -1,10 +1,9 @@
 import streamlit as st
-import pandas as pd
 from supabase import create_client, Client
 
 # ===== إعداد صفحة Streamlit =====
 st.set_page_config(layout="wide", page_title="📊 جلب المعلومات")
-st.title("📊 معلومات المستخدمين")
+st.title("📊 جلب المعلومات من قاعدة البيانات")
 
 # ===== شعار قابل للنقر =====
 st.markdown("""
@@ -36,9 +35,17 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 @st.cache_data
 def load_data():
     try:
+        # استعلام لجلب بيانات من جدول "users" في Supabase
+        data = supabase.table("users").select("*").execute().data
+        if not data:
+            return []
+        return data
+    except Exception as e:
+        st.error(f"❌ حدث خطأ أثناء جلب البيانات: {e}")
+        return []
+
 # ===== زر التحديث فقط =====
 if st.button("🔄 جلب المعلومات من قاعدة البيانات", key="refresh_top"):
     st.cache_data.clear()
-    data = load_data()
+    load_data()  # جلب البيانات من قاعدة البيانات
     st.success("✅ تم جلب البيانات بنجاح")
-
