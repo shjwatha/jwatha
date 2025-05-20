@@ -1,5 +1,6 @@
 import streamlit as st
 from supabase import create_client, Client
+import pandas as pd
 
 # الاتصال بـ Supabase
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
@@ -19,16 +20,18 @@ def load_data():
         data = supabase.table("users").select("*").execute().data
         if not data:
             st.warning("⚠️ لا توجد بيانات في جدول المستخدمين.")
-            return []
+            return None
         return data
     except Exception as e:
         st.error(f"❌ حدث خطأ أثناء جلب البيانات: {e}")
-        return []
+        return None
 
 # جلب البيانات
 data = load_data()
 
-# عرض البيانات في جدول
+# تحقق من البيانات قبل عرضها
 if data:
     df = pd.DataFrame(data)
     st.dataframe(df)  # عرض البيانات في جدول Streamlit
+else:
+    st.error("❌ لم يتم العثور على أي بيانات لعرضها.")
