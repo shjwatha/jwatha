@@ -76,7 +76,9 @@ def get_dynamic_columns(table_name: str):
     """
     response = supabase.table(table_name).select("*").limit(1).execute()
     if response.data and len(response.data) > 0:
-        return list(response.data[0].keys())
+        # جلب الأعمدة الديناميكية من البيانات المسترجعة
+        columns = list(response.data[0].keys())
+        return columns
     else:
         # قائمة افتراضية إذا لم يتم العثور على بيانات
         if table_name == "daily_data":
@@ -92,6 +94,7 @@ def get_dynamic_columns(table_name: str):
             ]
         else:
             return []
+
 
 # استدعاء الحقول من جدول daily_data واستبعاد الحقول الثابتة
 dynamic_columns = get_dynamic_columns("daily_data")
