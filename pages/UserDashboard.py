@@ -144,10 +144,15 @@ yes_no_scores = {"نعم = 1 نقطة": 1, "لا = 0 نقطة": 0}
 # دوال التحديث وإعادة التحميل ودالة عرض الدردشة
 # =============================================================
 def refresh_button(key):
+    global dynamic_columns, fields
     if st.button("🔄 جلب المعلومات من قاعدة البيانات", key=key):
         st.cache_data.clear()
+        # تحديث أسماء الأعمدة ديناميكيًا من جدول daily_data
+        dynamic_columns = get_dynamic_columns("daily_data")
+        fields_to_exclude = ["id", "username", "level"]
+        fields = [col for col in dynamic_columns if col not in fields_to_exclude]
         load_data()  # جلب البيانات من قاعدة البيانات
-        st.success("✅ تم جلب البيانات بنجاح")
+        st.success("✅ تم جلب البيانات وتحديث الأعمدة بنجاح")
 
 @st.cache_data
 def load_data():
