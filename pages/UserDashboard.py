@@ -106,7 +106,7 @@ def get_input_type(field):
         return "prayer"
     elif field == "السنن الرواتب":
         return "checkbox_group"
-    elif field in ["ورد الإمام النووي رحم الله", "مختصر إشراق الضياء"]:
+    elif field in ["ورد الإمام النووي رحمه الله", "مختصر إشراق الضياء"]:
         return "radio_time_read"
     else:
         return "yes_no"
