@@ -76,9 +76,7 @@ def get_dynamic_columns(table_name: str):
     """
     response = supabase.table(table_name).select("*").limit(1).execute()
     if response.data and len(response.data) > 0:
-        # جلب الأعمدة الديناميكية من البيانات المسترجعة
-        columns = list(response.data[0].keys())
-        return columns
+        return list(response.data[0].keys())
     else:
         # قائمة افتراضية إذا لم يتم العثور على بيانات
         if table_name == "daily_data":
@@ -94,7 +92,6 @@ def get_dynamic_columns(table_name: str):
             ]
         else:
             return []
-
 
 # استدعاء الحقول من جدول daily_data واستبعاد الحقول الثابتة
 dynamic_columns = get_dynamic_columns("daily_data")
@@ -146,13 +143,13 @@ yes_no_scores = {"نعم = 1 نقطة": 1, "لا = 0 نقطة": 0}
 # =============================================================
 # دوال التحديث وإعادة التحميل ودالة عرض الدردشة
 # =============================================================
-def refresh_button(key):
-    if st.button("🔄 جلب المعلومات من قاعدة البيانات", key=key):
+# ===== إضافة زر "جلب المعلومات" في القائمة الجانبية =====
+with st.sidebar:
+    # إضافة أيقونة جلب المعلومات
+    if st.button("🔄 جلب المعلومات من قاعدة البيانات"):
         st.cache_data.clear()
-        if hasattr(st, "experimental_rerun"):
-            st.experimental_rerun()
-        else:
-            st.warning("دالة st.experimental_rerun غير مدعومة في هذا الإصدار من Streamlit.")
+        load_data()  # جلب البيانات من قاعدة البيانات
+        st.success("✅ تم جلب البيانات بنجاح")
 
 @st.cache_data
 def load_data():
