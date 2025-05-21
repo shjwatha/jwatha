@@ -21,7 +21,7 @@ except Exception as e:
 # مثال: جلب بيانات من جدول users (إذا كان موجود)
 try:
     df = pd.read_sql("SELECT * FROM users", conn)
-    st.dataframe(df)
+
 except Exception as e:
     st.warning(f"⚠️ الاتصال ناجح، لكن حدث خطأ أثناء جلب البيانات: {e}")
 
