@@ -51,6 +51,6 @@ if st.button("🔄 جلب المعلومات من قاعدة البيانات", 
     df = load_data()
     if not df.empty:
         st.success("✅ تم جلب البيانات بنجاح")
-        st.dataframe(df.drop(columns=['username', 'password'], errors='ignore'))  # إخفاء الحقول الحساسة
+        
     else:
         st.info("ℹ️ لا توجد بيانات لعرضها.")
