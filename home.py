@@ -40,7 +40,10 @@ if not st.session_state["authenticated"]:
 
         if submitted:
             # المحاولة أولاً في جدول المستخدمين
-            user_result = supabase.table("users").select("*").eq("username", username).eq("password", password).execute()
+            cursor = conn.cursor(pymysql.cursors.DictCursor)
+            cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s", (username, password))
+            user = cursor.fetchone()
+
 
             if user_result.data:
                 user = user_result.data[0]
