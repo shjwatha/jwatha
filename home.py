@@ -1,7 +1,7 @@
 import streamlit as st
 import pymysql
 import pandas as pd
-
+st.set_page_config(page_title="تسجيل الدخول", page_icon="🔐")
 # الاتصال بقاعدة بيانات MySQL
 try:
     conn = pymysql.connect(
@@ -26,7 +26,7 @@ except Exception as e:
     st.warning(f"⚠️ الاتصال ناجح، لكن حدث خطأ أثناء جلب البيانات: {e}")
 
 # إعداد واجهة تسجيل الدخول
-st.set_page_config(page_title="تسجيل الدخول", page_icon="🔐")
+
 st.title("🔐 تسجيل الدخول")
 
 if "authenticated" not in st.session_state:
