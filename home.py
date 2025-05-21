@@ -1,8 +1,7 @@
 import streamlit as st
 import pymysql
-import pandas as pd
 
-# إعداد واجهة الصفحة
+# إعداد صفحة تسجيل الدخول
 st.set_page_config(page_title="تسجيل الدخول", page_icon="🔐")
 st.title("🔐 تسجيل الدخول")
 
@@ -21,10 +20,11 @@ except Exception as e:
     st.error(f"❌ فشل الاتصال بقاعدة البيانات: {e}")
     st.stop()
 
-# حالة تسجيل الدخول
+# إعداد الجلسة
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
+# نموذج تسجيل الدخول
 if not st.session_state["authenticated"]:
     with st.form("login_form"):
         username = st.text_input("اسم المستخدم")
@@ -32,7 +32,7 @@ if not st.session_state["authenticated"]:
         submitted = st.form_submit_button("دخول")
 
         if submitted:
-            # المحاولة أولاً في جدول users
+            # 1. تحقق من جدول المستخدمين
             cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s", (username, password))
             user = cursor.fetchone()
 
@@ -48,7 +48,7 @@ if not st.session_state["authenticated"]:
                 st.switch_page("pages/UserDashboard.py")
                 st.stop()
 
-            # المحاولة في جدول admins
+            # 2. تحقق من جدول الأدمن
             cursor.execute("SELECT * FROM admins WHERE username = %s AND password = %s", (username, password))
             admin = cursor.fetchone()
 
@@ -70,33 +70,31 @@ if not st.session_state["authenticated"]:
                     st.error("❌ نوع صلاحية غير معروف")
                 st.stop()
 
-            # المحاولة في جدول super_admins
-            cursor.execute("SELECT * FROM super_admins")
-            super_admins = cursor.fetchall()
-            admin_match = next(
-                (
-                    a for a in super_admins
-                    if (
-                        a["username"].strip().lower() == username.lower() or
-                        a["full_name"].strip().lower() == username.lower()
-                    ) and a["password"] == password
-                ),
-                None
-            )
+            # 3. تحقق من جدول السوبر أدمن
+            cursor.execute("SELECT * FROM super_admins WHERE username = %s AND password = %s", (username, password))
+            super_admin = cursor.fetchone()
 
-            if admin_match:
+            if super_admin:
                 st.session_state.update({
                     "authenticated": True,
-                    "username": admin_match["username"],
-                    "full_name": admin_match["full_name"],
-                    "permissions": admin_match["role"]
+                    "username": super_admin["username"],
+                    "full_name": super_admin["full_name"],
+                    "permissions": super_admin["role"]
                 })
                 st.success("✅ تم تسجيل الدخول بنجاح")
                 st.switch_page("pages/SuperAdmin.py")
                 st.stop()
 
-            else:
-                st.error("❌ اسم المستخدم أو كلمة المرور غير صحيحة")
+            # إذا لم يتم التحقق في أي جدول
+            st.error("❌ اسم المستخدم أو كلمة المرور غير صحيحة")
 
+# إذا المستخدم مسجل دخوله مسبقًا
 else:
-    st.switch_page("pages/UserDashboard.py")
+    if st.session_state["permissions"] == "admin":
+        st.switch_page("pages/AdminDashboard.py")
+    elif st.session_state["permissions"] in ["supervisor", "sp"]:
+        st.switch_page("pages/Supervisor.py")
+    elif st.session_state["permissions"] == "super_admin":
+        st.switch_page("pages/SuperAdmin.py")
+    else:
+        st.switch_page("pages/UserDashboard.py")
