@@ -1,6 +1,7 @@
+# ✅ AdminDashboard.py — إدارة المستخدمين (MySQL فقط)
 import streamlit as st
-from supabase import create_client, Client
 import pandas as pd
+import pymysql
 
 # إعداد الصفحة
 st.set_page_config(page_title="لوحة الإدارة", page_icon="🛠️")
@@ -18,13 +19,29 @@ if st.session_state["permissions"] != "admin":
 admin_username = st.session_state["username"]
 admin_level = st.session_state["level"]
 
+# الاتصال بقاعدة البيانات
+try:
+    conn = pymysql.connect(
+        host=st.secrets["DB_HOST"],
+        port=int(st.secrets["DB_PORT"]),
+        user=st.secrets["DB_USER"],
+        password=st.secrets["DB_PASSWORD"],
+        database=st.secrets["DB_NAME"],
+        charset='utf8mb4'
+    )
+    cursor = conn.cursor(pymysql.cursors.DictCursor)
+except Exception as e:
+    st.error(f"❌ فشل الاتصال بقاعدة البيانات: {e}")
+    st.stop()
+
 # 🔄 زر تحديث البيانات
 if st.button("🔄 تحديث البيانات"):
     st.rerun()
 
 # جلب جميع المستخدمين من نفس المستوى
-users_response = supabase.table("users").select("*").eq("level", admin_level).execute()
-users_df = pd.DataFrame(users_response.data) if users_response.data else pd.DataFrame(columns=["full_name", "username", "mentor"])
+cursor.execute("SELECT * FROM users WHERE level = %s", (admin_level,))
+users_data = cursor.fetchall()
+users_df = pd.DataFrame(users_data)
 
 st.subheader(f"📋 قائمة المستخدمين في المستوى {admin_level}")
 if users_df.empty:
@@ -40,146 +57,73 @@ with st.form("create_user_form"):
     full_name = st.text_input("الاسم الكامل")
     username = st.text_input("اسم المستخدم")
     password = st.text_input("كلمة المرور")
-    mentor = st.text_input("اسم المشرف")  # المشرف يتم إدخاله يدويًا هنا
+    mentor = st.text_input("اسم المشرف")
     submitted = st.form_submit_button("إنشاء")
 
     if submitted:
         if not full_name or not username or not password or not mentor:
             st.warning("⚠️ يرجى تعبئة جميع الحقول.")
         else:
-            # التحقق من التكرار في قاعدة البيانات
-            exists_user = supabase.table("users").select("*").or_(
-                f"username.eq.{username},full_name.eq.{full_name}"
-            ).execute()
+            cursor.execute("SELECT * FROM users WHERE username = %s OR full_name = %s", (username, full_name))
+            exists_user = cursor.fetchone()
 
-            if exists_user.data:
+            if exists_user:
                 st.error("❌ الاسم الكامل أو اسم المستخدم مستخدم من قبل.")
             else:
-                # إنشاء المستخدم الجديد
-                insert_response = supabase.table("users").insert({
-                    "full_name": full_name.strip(),
-                    "username": username.strip(),
-                    "password": password.strip(),
-                    "mentor": mentor.strip(),
-                    "level": admin_level
-                }).execute()
-
-                if insert_response.status_code == 201:
+                try:
+                    cursor.execute("""
+                        INSERT INTO users (full_name, username, password, mentor, level)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (full_name.strip(), username.strip(), password.strip(), mentor.strip(), admin_level))
+                    conn.commit()
                     st.success("✅ تم إنشاء المستخدم بنجاح.")
                     st.rerun()
-                else:
-                    st.error("❌ حدث خطأ أثناء إنشاء المستخدم.")
+                except Exception as e:
+                    st.error(f"❌ حدث خطأ أثناء إنشاء المستخدم: {e}")
 
+
+
+# 📦 إنشاء 20 مستخدم دفعة واحدة
 st.subheader("📦 إنشاء 20 مستخدم دفعة واحدة")
 
-st.markdown(
-    """
+st.markdown("""
     <style>
     .rtl input, .rtl select, .rtl textarea {
         direction: rtl;
         text-align: right;
     }
     </style>
-    """,
-    unsafe_allow_html=True,
-)
+    """, unsafe_allow_html=True)
 
 with st.form("bulk_user_form"):
-    full_names = []
-    usernames = []
-    passwords = []
-    mentors = []
-
+    full_names, usernames, passwords, mentors = [], [], [], []
     for i in range(1, 21):
         st.markdown(f"#### 👤 المستخدم رقم {i}", unsafe_allow_html=True)
         cols = st.columns(4)
-        with cols[0]:
-            full_names.append(st.text_input(f"الاسم الكامل {i}", key=f"full_name_{i}"))
-        with cols[1]:
-            usernames.append(st.text_input(f"اسم المستخدم {i}", key=f"username_{i}"))
-        with cols[2]:
-            passwords.append(st.text_input(f"كلمة المرور {i}", key=f"password_{i}"))
-        with cols[3]:
-            mentors.append(st.text_input(f"اسم المشرف {i}", key=f"mentor_{i}"))
+        with cols[0]: full_names.append(st.text_input(f"الاسم الكامل {i}", key=f"full_name_{i}"))
+        with cols[1]: usernames.append(st.text_input(f"اسم المستخدم {i}", key=f"username_{i}"))
+        with cols[2]: passwords.append(st.text_input(f"كلمة المرور {i}", key=f"password_{i}"))
+        with cols[3]: mentors.append(st.text_input(f"اسم المشرف {i}", key=f"mentor_{i}"))
 
     submit_bulk = st.form_submit_button("💾 حفظ جميع المستخدمين")
 
     if submit_bulk:
         created_count = 0
         skipped_count = 0
-
         for i in range(20):
-            fn = full_names[i].strip()
-            un = usernames[i].strip()
-            pw = passwords[i].strip()
-            mn = mentors[i].strip()
-
+            fn, un, pw, mn = full_names[i].strip(), usernames[i].strip(), passwords[i].strip(), mentors[i].strip()
             if not fn or not un or not pw or not mn:
                 continue
-
-            check = supabase.table("users").select("*").or_(
-                f"username.eq.{un},full_name.eq.{fn}"
-            ).execute()
-
-            if check.data:
+            cursor.execute("SELECT * FROM users WHERE username = %s OR full_name = %s", (un, fn))
+            if cursor.fetchone():
                 st.warning(f"🚫 تم تجاوز '{un}' لأن الاسم أو اسم المستخدم مستخدم من قبل.")
                 skipped_count += 1
                 continue
-
-            supabase.table("users").insert({
-                "full_name": fn,
-                "username": un,
-                "password": pw,
-                "mentor": mn,
-                "level": admin_level
-            }).execute()
+            cursor.execute("""
+                INSERT INTO users (full_name, username, password, mentor, level)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (fn, un, pw, mn, admin_level))
             created_count += 1
-
+        conn.commit()
         st.success(f"✅ تم إنشاء {created_count} مستخدم. تم تجاوز {skipped_count} مستخدم (بيانات ناقصة أو مكررة).")
         st.rerun()
-
-st.subheader("👥 إدارة المستخدمين التابعين لك")
-
-# تحميل المستخدمين حسب المستوى
-try:
-    users_data = supabase.table("users").select("*").eq("level", admin_level).execute()
-    users_df = pd.DataFrame(users_data.data)
-except Exception as e:
-    st.error("❌ حدث خطأ أثناء تحميل المستخدمين.")
-    users_df = pd.DataFrame()
-
-if users_df.empty:
-    st.info("ℹ️ لا يوجد مستخدمون في هذا المستوى حتى الآن.")
-else:
-    selected_user = st.selectbox("🧑 اختر مستخدم لحذفه", users_df["username"])
-    if st.button("🗑️ حذف المستخدم"):
-        user_to_delete = users_df[users_df["username"] == selected_user]
-        if not user_to_delete.empty:
-            user_id = user_to_delete.iloc[0]["id"]
-            supabase.table("users").delete().eq("id", user_id).execute()
-            st.success(f"✅ تم حذف المستخدم: {selected_user}")
-            st.rerun()
-
-    st.markdown("### 📋 قائمة المستخدمين")
-    st.dataframe(users_df[["full_name", "username", "mentor", "created_at"]], use_container_width=True)
-
-if admin_role in ["supervisor", "sp", "super_admin"]:
-    st.subheader("📊 لوحة المشرف")
-
-    view_mode = st.radio("📌 اختر طريقة العرض", ["حسب المشرف", "حسب المستوى"], horizontal=True)
-
-    if view_mode == "حسب المشرف":
-        mentors = users_df["mentor"].dropna().unique().tolist()
-        selected_mentor = st.selectbox("👨‍🏫 اختر المشرف", mentors)
-
-        filtered_df = users_df[users_df["mentor"] == selected_mentor]
-        st.markdown(f"### 👥 المستخدمون تحت إشراف: {selected_mentor}")
-        st.dataframe(filtered_df[["full_name", "username", "created_at"]], use_container_width=True)
-
-    else:  # حسب المستوى
-        levels = sorted(users_df["level"].dropna().unique().astype(int))
-        selected_level = st.selectbox("🎯 اختر المستوى", levels)
-
-        filtered_df = users_df[users_df["level"] == selected_level]
-        st.markdown(f"### 👥 المستخدمون في المستوى: {selected_level}")
-        st.dataframe(filtered_df[["full_name", "username", "mentor", "created_at"]], use_container_width=True)
