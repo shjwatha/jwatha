@@ -7,3 +7,4 @@ gunicorn
 hijri-converter
 supabase
 httpx
+pymysql
