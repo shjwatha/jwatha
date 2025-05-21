@@ -2,11 +2,6 @@ import streamlit as st
 from supabase import create_client, Client
 import pandas as pd
 
-# إعداد الاتصال بـ Supabase
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_SERVICE_KEY = st.secrets["SUPABASE_SERVICE_KEY"]
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-
 # إعداد الصفحة
 st.set_page_config(page_title="لوحة الإدارة", page_icon="🛠️")
 st.title("🛠️ لوحة إدارة المستخدمين")
