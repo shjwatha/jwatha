@@ -1,7 +1,11 @@
 import streamlit as st
 import pymysql
 import pandas as pd
+
+# إعداد واجهة الصفحة
 st.set_page_config(page_title="تسجيل الدخول", page_icon="🔐")
+st.title("🔐 تسجيل الدخول")
+
 # الاتصال بقاعدة بيانات MySQL
 try:
     conn = pymysql.connect(
@@ -12,23 +16,12 @@ try:
         database=st.secrets["DB_NAME"],
         charset='utf8mb4'
     )
-    st.success("✅ تم الاتصال بقاعدة البيانات بنجاح")
-
+    cursor = conn.cursor(pymysql.cursors.DictCursor)
 except Exception as e:
     st.error(f"❌ فشل الاتصال بقاعدة البيانات: {e}")
     st.stop()
 
-# مثال: جلب بيانات من جدول users (إذا كان موجود)
-try:
-    df = pd.read_sql("SELECT * FROM users", conn)
-
-except Exception as e:
-    st.warning(f"⚠️ الاتصال ناجح، لكن حدث خطأ أثناء جلب البيانات: {e}")
-
-# إعداد واجهة تسجيل الدخول
-
-st.title("🔐 تسجيل الدخول")
-
+# حالة تسجيل الدخول
 if "authenticated" not in st.session_state:
     st.session_state["authenticated"] = False
 
@@ -39,36 +32,33 @@ if not st.session_state["authenticated"]:
         submitted = st.form_submit_button("دخول")
 
         if submitted:
-            # المحاولة أولاً في جدول المستخدمين
-            cursor = conn.cursor(pymysql.cursors.DictCursor)
+            # المحاولة أولاً في جدول users
             cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s", (username, password))
             user = cursor.fetchone()
 
-
-            if user_result.data:
-                user = user_result.data[0]
+            if user:
                 st.session_state.update({
                     "authenticated": True,
                     "username": user["username"],
                     "full_name": user["full_name"],
                     "permissions": "user",
-                    "level": user["level"]
+                    "level": user.get("level", "")
                 })
                 st.success("✅ تم تسجيل الدخول بنجاح")
                 st.switch_page("pages/UserDashboard.py")
                 st.stop()
 
-            # المحاولة في جدول الأدمن
-            admin_result = supabase.table("admins").select("*").eq("username", username).eq("password", password).execute()
+            # المحاولة في جدول admins
+            cursor.execute("SELECT * FROM admins WHERE username = %s AND password = %s", (username, password))
+            admin = cursor.fetchone()
 
-            if admin_result.data:
-                admin = admin_result.data[0]
+            if admin:
                 st.session_state.update({
                     "authenticated": True,
                     "username": admin["username"],
                     "full_name": admin["full_name"],
                     "permissions": admin["role"],
-                    "level": admin["level"]
+                    "level": admin.get("level", "")
                 })
                 st.success("✅ تم تسجيل الدخول بنجاح")
 
@@ -81,10 +71,11 @@ if not st.session_state["authenticated"]:
                 st.stop()
 
             # المحاولة في جدول super_admins
-            super_admins_result = supabase.table("super_admins").select("*").execute()
-            admin = next(
+            cursor.execute("SELECT * FROM super_admins")
+            super_admins = cursor.fetchall()
+            admin_match = next(
                 (
-                    a for a in super_admins_result.data
+                    a for a in super_admins
                     if (
                         a["username"].strip().lower() == username.lower() or
                         a["full_name"].strip().lower() == username.lower()
@@ -93,12 +84,12 @@ if not st.session_state["authenticated"]:
                 None
             )
 
-            if admin:
+            if admin_match:
                 st.session_state.update({
                     "authenticated": True,
-                    "username": admin["username"],
-                    "full_name": admin["full_name"],
-                    "permissions": admin["role"]
+                    "username": admin_match["username"],
+                    "full_name": admin_match["full_name"],
+                    "permissions": admin_match["role"]
                 })
                 st.success("✅ تم تسجيل الدخول بنجاح")
                 st.switch_page("pages/SuperAdmin.py")
@@ -106,5 +97,6 @@ if not st.session_state["authenticated"]:
 
             else:
                 st.error("❌ اسم المستخدم أو كلمة المرور غير صحيحة")
+
 else:
     st.switch_page("pages/UserDashboard.py")
