@@ -1,10 +1,29 @@
 import streamlit as st
-from supabase import create_client, Client
+import pymysql
+import pandas as pd
 
-# إعداد الاتصال بـ Supabase
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_SERVICE_KEY = st.secrets["SUPABASE_SERVICE_KEY"]
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+# الاتصال بقاعدة بيانات MySQL
+try:
+    conn = pymysql.connect(
+        host=st.secrets["DB_HOST"],
+        port=int(st.secrets["DB_PORT"]),
+        user=st.secrets["DB_USER"],
+        password=st.secrets["DB_PASSWORD"],
+        database=st.secrets["DB_NAME"],
+        charset='utf8mb4'
+    )
+    st.success("✅ تم الاتصال بقاعدة البيانات بنجاح")
+
+except Exception as e:
+    st.error(f"❌ فشل الاتصال بقاعدة البيانات: {e}")
+    st.stop()
+
+# مثال: جلب بيانات من جدول users (إذا كان موجود)
+try:
+    df = pd.read_sql("SELECT * FROM users", conn)
+    st.dataframe(df)
+except Exception as e:
+    st.warning(f"⚠️ الاتصال ناجح، لكن حدث خطأ أثناء جلب البيانات: {e}")
 
 # إعداد واجهة تسجيل الدخول
 st.set_page_config(page_title="تسجيل الدخول", page_icon="🔐")
