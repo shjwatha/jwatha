@@ -1,5 +1,6 @@
 import streamlit as st
-from supabase import create_client, Client
+import pymysql
+import pandas as pd
 
 # ===== إعداد صفحة Streamlit =====
 st.set_page_config(layout="wide", page_title="📊 جلب المعلومات")
@@ -26,26 +27,30 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ===== الاتصال بـ Supabase =====
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_SERVICE_KEY = st.secrets["SUPABASE_SERVICE_KEY"]
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-
-# ===== تحميل البيانات من Supabase =====
+# ===== تحميل البيانات من MySQL =====
 @st.cache_data
 def load_data():
     try:
-        # استعلام لجلب بيانات من جدول "users" في Supabase
-        data = supabase.table("users").select("*").execute().data
-        if not data:
-            return []
-        return data
+        conn = pymysql.connect(
+            host=st.secrets["DB_HOST"],
+            port=int(st.secrets["DB_PORT"]),
+            user=st.secrets["DB_USER"],
+            password=st.secrets["DB_PASSWORD"],
+            database=st.secrets["DB_NAME"],
+            charset='utf8mb4'
+        )
+        df = pd.read_sql("SELECT * FROM users", conn)
+        return df
     except Exception as e:
         st.error(f"❌ حدث خطأ أثناء جلب البيانات: {e}")
-        return []
+        return pd.DataFrame()
 
 # ===== زر التحديث فقط =====
 if st.button("🔄 جلب المعلومات من قاعدة البيانات", key="refresh_top"):
     st.cache_data.clear()
-    load_data()  # جلب البيانات من قاعدة البيانات
-    st.success("✅ تم جلب البيانات بنجاح")
+    df = load_data()
+    if not df.empty:
+        st.success("✅ تم جلب البيانات بنجاح")
+        st.dataframe(df.drop(columns=['username', 'password'], errors='ignore'))  # إخفاء الحقول الحساسة
+    else:
+        st.info("ℹ️ لا توجد بيانات لعرضها.")
