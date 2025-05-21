@@ -275,7 +275,7 @@ with tabs[2]:
     </style>
     """, unsafe_allow_html=True)
 
-    st.dataframe(grouped, use_container_width=True)
+    
 
 # ===== تبويب 4: تجميعي بند =====
 with tabs[3]:
@@ -302,7 +302,7 @@ with tabs[3]:
     activity_sum = filtered_df.groupby("username")[selected_activity].sum().sort_values(ascending=True)
     activity_sum = activity_sum.reindex(all_usernames, fill_value=0)  # ✅ ضمان ظهور كل المستخدمين
 
-    st.dataframe(activity_sum, use_container_width=True)
+    
 
 # ===== تبويب 5: تقرير فردي =====
 with tabs[4]:
@@ -329,7 +329,7 @@ with tabs[4]:
     if user_df.empty:
         st.info("لا توجد بيانات لهذا المستخدم في الفترة المحددة.")
     else:
-        st.dataframe(user_df.reset_index(drop=True), use_container_width=True)
+        
 
 # ===== تبويب 6: رسوم بيانية =====
 with tabs[5]:
