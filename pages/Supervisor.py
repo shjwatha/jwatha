@@ -4,11 +4,6 @@ from datetime import datetime, timedelta
 from supabase import create_client, Client
 import plotly.graph_objects as go
 
-# ===== إعداد الاتصال بـ Supabase =====
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_SERVICE_KEY = st.secrets["SUPABASE_SERVICE_KEY"]
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-
 # ===== التحقق من تسجيل الدخول =====
 if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
     st.warning("🔐 يجب تسجيل الدخول أولاً")
