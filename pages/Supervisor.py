@@ -1,8 +1,24 @@
+# ✅ الجزء 1: الاستيرادات والتهيئة والاتصال بقاعدة البيانات
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
-from supabase import create_client, Client
 import plotly.graph_objects as go
+import pymysql
+
+# ===== الاتصال بقاعدة بيانات MySQL =====
+try:
+    conn = pymysql.connect(
+        host=st.secrets["DB_HOST"],
+        port=int(st.secrets["DB_PORT"]),
+        user=st.secrets["DB_USER"],
+        password=st.secrets["DB_PASSWORD"],
+        database=st.secrets["DB_NAME"],
+        charset='utf8mb4'
+    )
+    cursor = conn.cursor(pymysql.cursors.DictCursor)
+except Exception as e:
+    st.error(f"❌ فشل الاتصال بقاعدة البيانات: {e}")
+    st.stop()
 
 # ===== التحقق من تسجيل الدخول =====
 if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
@@ -21,16 +37,8 @@ if permissions not in ["supervisor", "sp"]:
 username = st.session_state.get("username")
 user_level = st.session_state.get("level")
 
-# ===== جلب بيانات المشرفين والمستخدمين =====
-all_admins = supabase.table("admins").select("*").eq("level", user_level).execute().data
-all_users = supabase.table("users").select("*").eq("level", user_level).execute().data
-
-users_df = pd.DataFrame(all_users)
-admins_df = pd.DataFrame(all_admins)
-
 # ===== إعداد الصفحة =====
 st.set_page_config(page_title="📊 تقارير المشرف", page_icon="📊", layout="wide")
-
 st.markdown("""
 <style>
 body, .stTextInput, .stTextArea, .stSelectbox, .stButton, .stMarkdown, .stDataFrame {
@@ -42,7 +50,15 @@ body, .stTextInput, .stTextArea, .stSelectbox, .stButton, .stMarkdown, .stDataFr
 
 st.title(f"👋 أهلاً {username}")
 
-# ===== تحديد المستخدمين المرتبطين بهذا المشرف =====
+# ✅ الجزء 2: تحميل بيانات المستخدمين والمشرفين
+cursor.execute("SELECT * FROM users WHERE level = %s", (user_level,))
+all_users = cursor.fetchall()
+cursor.execute("SELECT * FROM admins WHERE level = %s", (user_level,))
+all_admins = cursor.fetchall()
+
+users_df = pd.DataFrame(all_users)
+admins_df = pd.DataFrame(all_admins)
+
 if permissions == "supervisor":
     filtered_users = users_df[users_df["mentor"] == username]
 elif permissions == "sp":
@@ -52,6 +68,8 @@ else:
     filtered_users = pd.DataFrame()
 
 all_usernames = filtered_users["username"].tolist()
+
+# ملاحظة: تابع الجزء التالي لتحميل بيانات "daily_data" لكل مستخدم من MySQL أو Google Sheets إذا استُخدمت سابقًا.
 
 # ===== جلب البيانات اليومية من جدول "daily_data" =====
 all_data = []
