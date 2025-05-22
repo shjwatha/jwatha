@@ -39,7 +39,7 @@ selected_tab = st.radio("📂 اختر القسم", [
 ], horizontal=True)
 
 # ========== التبويب الأول: إدارة الأعضاء ==========
-elif selected_tab == "إدارة الأعضاء":
+if selected_tab == "إدارة الأعضاء":
     st.header("👥 إدارة الأعضاء")
 
     st.markdown("""
@@ -201,47 +201,49 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
     st.subheader("🧩 البنود الحالية حسب المستوى")
     selected_template_level = st.selectbox("اختر المستوى لعرض البنود", [lvl['level_name'] for lvl in levels], key="template_view_level")
 
-    try:
-        cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (selected_template_level,))
-        questions = cursor.fetchall()
-    except Exception as e:
-        st.error(f"❌ حدث خطأ أثناء جلب البنود الخاصة بالمستوى: {e}")
-        questions = []
+    cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (selected_template_level,))
+    questions = cursor.fetchall()
 
     if questions:
         for q in questions:
             with st.expander(f"{q['question']} ({q['input_type']})"):
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    if st.button(f"📝 تعديل البند {q['id']}", key=f"edit_q_{q['id']}"):
+                        st.warning("🚧 لم يتم تنفيذ التعديل بعد")
+                with col2:
+                    if st.button(f"🗑️ حذف البند {q['id']}", key=f"delete_q_{q['id']}"):
+                        cursor.execute("UPDATE self_assessment_templates SET is_deleted = TRUE WHERE id = %s", (q["id"],))
+                        conn.commit()
+                        st.success("✅ تم حذف البند")
+                        st.rerun()
+
                 cursor.execute("SELECT * FROM self_assessment_options WHERE question_id = %s", (q["id"],))
                 options = cursor.fetchall()
                 for opt in options:
-                    st.markdown(f"🔘 {opt['option_text']} - {opt['score']} نقطة")
+                    col3, col4 = st.columns([4, 1])
+                    with col3:
+                        st.markdown(f"🔘 {opt['option_text']} - {opt['score']} نقطة")
+                    with col4:
+                        if st.button("🗑️ حذف", key=f"delete_opt_{opt['id']}"):
+                            cursor.execute("DELETE FROM self_assessment_options WHERE id = %s", (opt["id"],))
+                            conn.commit()
+                            st.success("✅ تم حذف الخيار")
+                            st.rerun()
 
-                # إضافة أزرار التعديل والحذف
-                with st.form(f"edit_delete_form_{q['id']}"):
-                    col1, col2 = st.columns([1, 1])
-                    with col1:
-                        new_question = st.text_input("عنوان البند", value=q['question'], key=f"edit_q_{q['id']}")
-                        new_score = st.number_input("الدرجة الكاملة", min_value=1, max_value=100, value=q['score'], key=f"edit_s_{q['id']}")
-                    with col2:
-                        update_btn = st.form_submit_button("📝 تحديث")
-                        delete_btn = st.form_submit_button("🗑️ حذف")
+                with st.form(f"add_option_{q['id']}"):
+                    option_text = st.text_input("النص", key=f"opt_text_{q['id']}")
+                    score = st.number_input("الدرجة", 0, 100, step=1, key=f"opt_score_{q['id']}")
+                    submitted_opt = st.form_submit_button("➕ أضف خيار")
 
-                    if update_btn:
+                    if submitted_opt and option_text:
                         cursor.execute(
-                            "UPDATE self_assessment_templates SET question = %s, score = %s WHERE id = %s",
-                            (new_question, new_score, q['id'])
+                            "INSERT INTO self_assessment_options (question_id, option_text, score) VALUES (%s, %s, %s)",
+                            (q["id"], option_text, score)
                         )
                         conn.commit()
-                        st.success("✅ تم التحديث")
+                        st.success("✅ تم إضافة الخيار")
                         st.rerun()
-
-                    if delete_btn:
-                        cursor.execute("DELETE FROM self_assessment_templates WHERE id = %s", (q['id'],))
-                        conn.commit()
-                        st.success("✅ تم الحذف")
-                        st.rerun()
-    else:
-        st.info("لا توجد بنود تقييم لهذا المستوى بعد.")
 
 # ========== التبويب الثالث: نقاطي ==========
 elif selected_tab == "نقاطي (تقييم من المشرف)":
