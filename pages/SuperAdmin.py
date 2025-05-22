@@ -207,17 +207,20 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
         submitted_q = st.form_submit_button("➕ أضف البند")
 
         if submitted_q and question:
-            cursor.execute(
-                "INSERT INTO self_assessment_templates (question, input_type, level) VALUES (%s, %s, %s)",
-                (question, input_type, level)
-            )
-            conn.commit()
-            st.success("✅ تم إضافة البند")
-            # إعادة جلب البيانات المحدثة من قاعدة البيانات
-            cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (level,))
-            questions = cursor.fetchall()
-            # تخزين البيانات المحدثة في الجلسة
-            st.session_state.questions = questions  # حفظ البيانات في الجلسة
+            try:
+                cursor.execute(
+                    "INSERT INTO self_assessment_templates (question, input_type, level) VALUES (%s, %s, %s)",
+                    (question, input_type, level)
+                )
+                conn.commit()
+                st.success("✅ تم إضافة البند")
+                # إعادة جلب البيانات المحدثة من قاعدة البيانات
+                cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (level,))
+                questions = cursor.fetchall()
+                # تخزين البيانات المحدثة في الجلسة
+                st.session_state.questions = questions
+            except Exception as e:
+                st.error(f"❌ حدث خطأ أثناء إضافة البند: {e}")
 
     st.subheader("🧩 البنود الحالية حسب المستوى")
     selected_template_level = st.selectbox("اختر المستوى لعرض البنود", [lvl['level_name'] for lvl in levels], key="template_view_level")
@@ -242,25 +245,31 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                         new_input_type = st.selectbox("نوع الإجابة", input_type_options, index=new_input_type_index, key=f"edit_q_input_type_{q['id']}")
                         
                         if st.button(f"تحديث البند {q['id']}", key=f"update_q_button_{q['id']}"):
-                            cursor.execute("UPDATE self_assessment_templates SET question = %s, input_type = %s WHERE id = %s", (new_question, new_input_type, q["id"]))
+                            try:
+                                cursor.execute("UPDATE self_assessment_templates SET question = %s, input_type = %s WHERE id = %s", (new_question, new_input_type, q["id"]))
+                                conn.commit()
+                                st.success("✅ تم التحديث")
+                                # إعادة جلب البيانات المحدثة من قاعدة البيانات
+                                cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (selected_template_level,))
+                                questions = cursor.fetchall()
+                                # تخزين البيانات المحدثة في الجلسة
+                                st.session_state.questions = questions
+                            except Exception as e:
+                                st.error(f"❌ حدث خطأ أثناء التحديث: {e}")
+
+                with col2:
+                    if st.button(f"🗑️ حذف البند {q['id']}", key=f"delete_q_button_{q['id']}"):
+                        try:
+                            cursor.execute("UPDATE self_assessment_templates SET is_deleted = TRUE WHERE id = %s", (q["id"],))
                             conn.commit()
-                            st.success("✅ تم التحديث")
+                            st.success("✅ تم حذف البند")
                             # إعادة جلب البيانات المحدثة من قاعدة البيانات
                             cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (selected_template_level,))
                             questions = cursor.fetchall()
                             # تخزين البيانات المحدثة في الجلسة
                             st.session_state.questions = questions
-
-                with col2:
-                    if st.button(f"🗑️ حذف البند {q['id']}", key=f"delete_q_button_{q['id']}"):
-                        cursor.execute("UPDATE self_assessment_templates SET is_deleted = TRUE WHERE id = %s", (q["id"],))
-                        conn.commit()
-                        st.success("✅ تم حذف البند")
-                        # إعادة جلب البيانات المحدثة من قاعدة البيانات
-                        cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (selected_template_level,))
-                        questions = cursor.fetchall()
-                        # تخزين البيانات المحدثة في الجلسة
-                        st.session_state.questions = questions
+                        except Exception as e:
+                            st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
 
                 cursor.execute("SELECT * FROM self_assessment_options WHERE question_id = %s", (q["id"],))
                 options = cursor.fetchall()
@@ -270,14 +279,17 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                         st.markdown(f"🔘 {opt['option_text']} - {opt['score']} نقطة")
                     with col4:
                         if st.button("🗑️ حذف الخيار", key=f"delete_opt_button_{opt['id']}"):
-                            cursor.execute("DELETE FROM self_assessment_options WHERE id = %s", (opt["id"],))
-                            conn.commit()
-                            st.success("✅ تم حذف الخيار")
-                            # إعادة جلب البيانات المحدثة من قاعدة البيانات
-                            cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (selected_template_level,))
-                            questions = cursor.fetchall()
-                            # تخزين البيانات المحدثة في الجلسة
-                            st.session_state.questions = questions
+                            try:
+                                cursor.execute("DELETE FROM self_assessment_options WHERE id = %s", (opt["id"],))
+                                conn.commit()
+                                st.success("✅ تم حذف الخيار")
+                                # إعادة جلب البيانات المحدثة من قاعدة البيانات
+                                cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (selected_template_level,))
+                                questions = cursor.fetchall()
+                                # تخزين البيانات المحدثة في الجلسة
+                                st.session_state.questions = questions
+                            except Exception as e:
+                                st.error(f"❌ حدث خطأ أثناء حذف الخيار: {e}")
 
                 with st.form(f"add_option_{q['id']}"):
                     option_text = st.text_input(f"النص الخاص بالخيار {q['id']}", key=f"opt_text_{q['id']}")
@@ -285,17 +297,20 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                     submitted_opt = st.form_submit_button(f"➕ أضف خيار {q['id']}")
 
                     if submitted_opt and option_text:
-                        cursor.execute(
-                            "INSERT INTO self_assessment_options (question_id, option_text, score) VALUES (%s, %s, %s)",
-                            (q["id"], option_text, score)
-                        )
-                        conn.commit()
-                        st.success("✅ تم إضافة الخيار")
-                        # إعادة جلب البيانات المحدثة من قاعدة البيانات
-                        cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (selected_template_level,))
-                        questions = cursor.fetchall()
-                        # تخزين البيانات المحدثة في الجلسة
-                        st.session_state.questions = questions
+                        try:
+                            cursor.execute(
+                                "INSERT INTO self_assessment_options (question_id, option_text, score) VALUES (%s, %s, %s)",
+                                (q["id"], option_text, score)
+                            )
+                            conn.commit()
+                            st.success("✅ تم إضافة الخيار")
+                            # إعادة جلب البيانات المحدثة من قاعدة البيانات
+                            cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (selected_template_level,))
+                            questions = cursor.fetchall()
+                            # تخزين البيانات المحدثة في الجلسة
+                            st.session_state.questions = questions
+                        except Exception as e:
+                            st.error(f"❌ حدث خطأ أثناء إضافة الخيار: {e}")
 
 # ========== التبويب الثالث: نقاطي ==========
 elif selected_tab == "نقاطي (تقييم من المشرف)":
