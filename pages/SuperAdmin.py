@@ -80,7 +80,14 @@ if selected_tab == "إدارة الأعضاء":
                 col1, col2 = st.columns([1, 1])
                 with col1:
                     if st.button(f"📝 تعديل {admin['username']}", key=f"edit_admin_{admin['id']}"):
-                        st.warning("🚧 لم يتم تنفيذ خاصية التعديل بعد")
+                        new_full_name = st.text_input("الاسم الكامل", value=admin['full_name'])
+                        new_level = st.selectbox("المستوى", [lvl['level_name'] for lvl in levels], index=[lvl['level_name'] for lvl in levels].index(admin['level']))
+                        new_role = st.selectbox("الدور", ["admin", "sp", "supervisor"], index=["admin", "sp", "supervisor"].index(admin['role']))
+                        if st.button(f"تحديث"):
+                            cursor.execute("UPDATE admins SET full_name = %s, level = %s, role = %s WHERE id = %s", (new_full_name, new_level, new_role, admin['id']))
+                            conn.commit()
+                            st.success("✅ تم التحديث")
+                            st.rerun()
                 with col2:
                     if st.button(f"🗑️ حذف {admin['username']}", key=f"delete_admin_{admin['id']}"):
                         cursor.execute("UPDATE admins SET is_deleted = TRUE WHERE id = %s", (admin['id'],))
@@ -96,7 +103,14 @@ if selected_tab == "إدارة الأعضاء":
                 col1, col2 = st.columns([1, 1])
                 with col1:
                     if st.button(f"📝 تعديل {user['username']}", key=f"edit_user_{user['id']}"):
-                        st.warning("🚧 لم يتم تنفيذ خاصية التعديل بعد")
+                        new_full_name = st.text_input("الاسم الكامل", value=user['full_name'])
+                        new_level = st.selectbox("المستوى", [lvl['level_name'] for lvl in levels], index=[lvl['level_name'] for lvl in levels].index(user['level']))
+                        new_mentor = st.selectbox("المشرف", [user['mentor'] for user in users])
+                        if st.button(f"تحديث"):
+                            cursor.execute("UPDATE users SET full_name = %s, level = %s, mentor = %s WHERE id = %s", (new_full_name, new_level, new_mentor, user['id']))
+                            conn.commit()
+                            st.success("✅ تم التحديث")
+                            st.rerun()
                 with col2:
                     if st.button(f"🗑️ حذف {user['username']}", key=f"delete_user_{user['id']}"):
                         cursor.execute("UPDATE users SET is_deleted = TRUE WHERE id = %s", (user['id'],))
