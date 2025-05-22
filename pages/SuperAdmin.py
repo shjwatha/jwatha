@@ -217,14 +217,14 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
 
                 # التأكد من أن commit تم بنجاح
                 print(f"تم تنفيذ الاستعلام بنجاح: {insert_query}")
-                
+
                 # جلب البيانات المحدثة من قاعدة البيانات
                 cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (level,))
                 questions = cursor.fetchall()
-                
+
                 # طباعة الأسئلة المحدثة
                 print(f"الأسئلة المحدثة بعد الإدخال: {questions}")
-                
+
                 # تخزين البيانات في الجلسة
                 st.session_state.questions = questions
 
@@ -245,14 +245,15 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
         for q in questions:
             with st.expander(f"{q['question']} ({q['input_type']})"):
                 col1, col2 = st.columns([1, 1])
+                # نموذج خاص بتعديل البند لضمان عدم ضياع حالة الإدخال عند إعادة تشغيل السكريبت
                 with col1:
-                    if st.button(f"📝 تعديل البند {q['id']}", key=f"edit_q_button_{q['id']}"):
+                    with st.form(key=f"edit_form_{q['id']}"):
                         input_type_options = ["اختيار واحد", "اختيار متعدد"]
                         new_input_type_index = input_type_options.index(q['input_type']) if q['input_type'] in input_type_options else 0
                         new_question = st.text_input(f"عنوان البند {q['id']}", value=q['question'], key=f"edit_q_text_input_{q['id']}")
                         new_input_type = st.selectbox("نوع الإجابة", input_type_options, index=new_input_type_index, key=f"edit_q_input_type_{q['id']}")
-                        
-                        if st.button(f"تحديث البند {q['id']}", key=f"update_q_button_{q['id']}"):
+                        submitted_edit = st.form_submit_button(f"تحديث البند {q['id']}")
+                        if submitted_edit:
                             try:
                                 update_query = "UPDATE self_assessment_templates SET question = %s, input_type = %s WHERE id = %s"
                                 print(f"الاستعلام: {update_query} | القيم: {(new_question, new_input_type, q['id'])}")  # طباعة الاستعلام
@@ -317,11 +318,10 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                                 st.error(f"❌ حدث خطأ أثناء حذف الخيار: {e}")
                                 print(f"خطأ أثناء حذف الخيار: {e}")
 
-                with st.form(f"add_option_{q['id']}"):
+                with st.form(key=f"add_option_{q['id']}"):
                     option_text = st.text_input(f"النص الخاص بالخيار {q['id']}", key=f"opt_text_{q['id']}")
                     score = st.number_input("الدرجة", 0, 100, step=1, key=f"opt_score_{q['id']}")
                     submitted_opt = st.form_submit_button(f"➕ أضف خيار {q['id']}")
-
                     if submitted_opt and option_text:
                         try:
                             insert_opt_query = "INSERT INTO self_assessment_options (question_id, option_text, score) VALUES (%s, %s, %s)"
@@ -340,7 +340,6 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                         except Exception as e:
                             st.error(f"❌ حدث خطأ أثناء إضافة الخيار: {e}")
                             print(f"خطأ أثناء إضافة الخيار: {e}")
-
 # ========== التبويب الثالث: نقاطي ==========
 elif selected_tab == "نقاطي (تقييم من المشرف)":
     st.header("🏅 إعداد بنود تقييم من المشرف")
