@@ -1,26 +1,23 @@
 import streamlit as st
 import pandas as pd
+import pymysql
 from datetime import datetime, timedelta
 from hijri_converter import Gregorian
-from supabase import create_client, Client
 
-# ===== إعادة التوجيه إذا لم يتم تسجيل الدخول =====
-if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
-    st.switch_page("home.py")
+# ===================== إعداد الصفحة والاتصال بقاعدة البيانات =====================
 
-# ===== الاتصال بـ Supabase =====
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_SERVICE_KEY = st.secrets["SUPABASE_SERVICE_KEY"]
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-
-# ===== إعداد الصفحة =====
 st.set_page_config(page_title="تقييم اليوم", page_icon="📋", layout="wide")
 
-# ===== تحقق من صلاحية المستخدم =====
-if "username" not in st.session_state or "level" not in st.session_state or "permissions" not in st.session_state:
+# التحقق من تسجيل الدخول
+if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
     st.error("❌ يجب تسجيل الدخول أولاً.")
     st.stop()
 
+if "username" not in st.session_state:
+    st.error("❌ بيانات المستخدم غير متاحة.")
+    st.stop()
+
+# التأكد من صلاحية المستخدم (نلاحظ أن هذه الصفحة مخصصة للمستخدمين فقط)
 if st.session_state["permissions"] != "user":
     if st.session_state["permissions"] == "admin":
         st.warning("تم تسجيل الدخول كأدمن، سيتم تحويلك للوحة التحكم...")
@@ -33,198 +30,53 @@ if st.session_state["permissions"] != "user":
     st.stop()
 
 username = st.session_state["username"]
-user_level = st.session_state["level"]
 
-# ===== جلب بيانات المستخدم والإداري من Supabase =====
+# الاتصال بقاعدة بيانات MySQL باستخدام المفاتيح من st.secrets
 try:
-    admin_response = supabase.table("admins")\
-        .select("username, full_name, mentor")\
-        .eq("level", user_level)\
-        .execute()
-    admin_data = admin_response.data if admin_response.data is not None else []
-    
-    user_response = supabase.table("users")\
-        .select("*")\
-        .eq("username", username)\
-        .eq("level", user_level)\
-        .execute()
-    user_data = user_response.data if user_response.data is not None else []
-    
-    if not user_data:
-        st.error("❌ لم يتم العثور على بيانات هذا المستخدم.")
-        st.stop()
-    user_record = user_data[0]
+    conn = pymysql.connect(
+        host=st.secrets["DB_HOST"],
+        port=int(st.secrets["DB_PORT"]),
+        user=st.secrets["DB_USER"],
+        password=st.secrets["DB_PASSWORD"],
+        database=st.secrets["DB_NAME"],
+        charset='utf8mb4'
+    )
+    cursor = conn.cursor(pymysql.cursors.DictCursor)
 except Exception as e:
-    st.error("❌ حدث خطأ أثناء الاتصال بقاعدة البيانات. حاول مرة أخرى.")
+    st.error(f"❌ فشل الاتصال بقاعدة البيانات: {e}")
     st.stop()
 
-# ===== جلب اسم المشرف والسوبر مشرف =====
-mentor_name = user_record.get("mentor")
-sp_row = next((row for row in admin_data if row["username"] == mentor_name), None)
-sp_name = sp_row.get("mentor") if sp_row else None
+# جلب بيانات المستخدم (على افتراض أن جدول users يحتوي على حقل mentor)
+try:
+    cursor.execute("SELECT mentor FROM users WHERE username = %s AND is_deleted = FALSE", (username,))
+    mentor_row = cursor.fetchone()
+    mentor_name = mentor_row["mentor"] if mentor_row else "غير معروف"
 
-# =============================================================
-# الجزء الخاص بالحقول الديناميكية من جدول daily_data
-# =============================================================
-# 🔄 استدعاء البنود الديناميكية من قاعدة البيانات
-def get_dynamic_criteria(conn):
-    """
-    جلب الأسئلة وخياراتها من قاعدة البيانات لتكوين نموذج التقييم الذاتي الديناميكي.
-    """
-    cursor = conn.cursor(pymysql.cursors.DictCursor)
+    # جلب بيانات السوبر مشرف (إذا وُجد)
+    cursor.execute("SELECT mentor FROM users WHERE username = %s AND is_deleted = FALSE", (mentor_name,))
+    sp_row = cursor.fetchone()
+    sp_name = sp_row["mentor"] if sp_row else None
+except Exception as e:
+    st.error(f"❌ خطأ في جلب بيانات المشرف: {e}")
+    mentor_name = "غير معروف"
+    sp_name = None
 
-    cursor.execute("SELECT * FROM self_assessment_templates")
-    templates = cursor.fetchall()
-
-    criteria = []
-    for template in templates:
-        cursor.execute("SELECT * FROM self_assessment_options WHERE question_id = %s", (template["id"],))
-        options = cursor.fetchall()
-
-        criteria.append({
-            "id": template["id"],
-            "question": template["question"],
-            "input_type": template["input_type"],
-            "options": options  # يحتوي على option_text و score
-        })
-
-    cursor.close()
-    return criteria
-
-# مثال استخدام:
-# conn = pymysql.connect(...) ← تأكد أن الاتصال جاهز
-# criteria = get_dynamic_criteria(conn)
-# =============================================================
-# دوال التحديث وإعادة التحميل ودالة عرض الدردشة
-# =============================================================
+# تعريف دالة التحديث (زر إعادة الجلب)
 def refresh_button(key):
-    global dynamic_columns, fields
     if st.button("🔄 جلب المعلومات من قاعدة البيانات", key=key):
-        st.cache_data.clear()
-        # تحديث أسماء الأعمدة ديناميكيًا من جدول daily_data
-        dynamic_columns = get_dynamic_columns("daily_data")
-        fields_to_exclude = ["id", "username", "level"]
-        fields = [col for col in dynamic_columns if col not in fields_to_exclude]
-        load_data()  # جلب البيانات من قاعدة البيانات
-        st.success("✅ تم جلب البيانات وتحديث الأعمدة بنجاح")
+        st.experimental_rerun()
 
-@st.cache_data
-def load_data():
-    try:
-        response = supabase.table("daily_data")\
-                    .select("*")\
-                    .eq("username", username)\
-                    .execute()
-        data = response.data if response.data is not None else []
-        df = pd.DataFrame(data)
-        return df
-    except Exception as e:
-        st.error("❌ حدث خطأ أثناء تحميل البيانات. حاول لاحقًا.")
-        st.stop()
+# إعداد التبويبات الرئيسية
+tabs = st.tabs(["📝 إدخال البيانات", "💬 المحادثات", "📊 تقارير المجموع", "🗒️ الإنجازات"])
 
-def show_chat():
-    st.markdown("### 💬 المحادثة مع المشرفين")
-    options = [mentor_name]
-    if sp_name:
-        options.append(sp_name)
-    if "selected_mentor_display" not in st.session_state:
-        st.session_state["selected_mentor_display"] = "اختر الشخص"
-    options_display = ["اختر الشخص"] + options
-    selected_mentor_display = st.selectbox("📨 اختر الشخص الذي ترغب بمراسلته", options_display, key="selected_mentor_display")
-    if selected_mentor_display != "اختر الشخص":
-        selected_mentor = selected_mentor_display
-        chat_response = supabase.table("chat").select("*").execute()
-        chat_data = pd.DataFrame(chat_response.data) if chat_response.data is not None else pd.DataFrame(
-            columns=["timestamp", "from", "to", "message", "read_by_receiver"])
-        if chat_data.empty:
-            st.info("💬 لا توجد رسائل حالياً.")
-            return
-        required_columns = {"from", "to", "message", "timestamp"}
-        if not required_columns.issubset(chat_data.columns):
-            st.warning("⚠️ الأعمدة الأساسية غير موجودة في بيانات الدردشة.")
-            return
-        unread_msgs = chat_data[
-            (chat_data["from"] == selected_mentor) &
-            (chat_data["to"] == username) &
-            (chat_data["read_by_receiver"].astype(str).str.strip() == "")
-        ]
-        if not unread_msgs.empty and "id" in unread_msgs.columns:
-            for _, row in unread_msgs.iterrows():
-                supabase.table("chat").update({"read_by_receiver": "✓"}).eq("id", row["id"]).execute()
-        chat_response = supabase.table("chat").select("*").execute()
-        chat_data = pd.DataFrame(chat_response.data) if chat_response.data is not None else pd.DataFrame()
-        messages = chat_data[
-            ((chat_data["from"] == username) & (chat_data["to"] == selected_mentor)) |
-            ((chat_data["from"] == selected_mentor) & (chat_data["to"] == username))
-        ]
-        if not messages.empty:
-            messages = messages.sort_values(by="timestamp")
-        else:
-            st.info("💬 لا توجد رسائل حالياً.")
-        for _, msg in messages.iterrows():
-            if msg["from"] == username:
-                st.markdown(f"<p style='color:#000080'><b> أنت:</b> {msg['message']}</p>", unsafe_allow_html=True)
-            else:
-                st.markdown(f"<p style='color:#8B0000'><b>{msg['from']}:</b> {msg['message']}</p>", unsafe_allow_html=True)
-        new_msg = st.text_area("✏️ اكتب رسالتك هنا", height=100)
-        if st.button("📨 إرسال الرسالة"):
-            if new_msg.strip():
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                new_record = {
-                    "timestamp": timestamp,
-                    "from": username,
-                    "to": selected_mentor,
-                    "message": new_msg,
-                    "read_by_receiver": ""
-                }
-                supabase.table("chat").insert(new_record).execute()
-                st.success("✅ تم إرسال الرسالة")
-                st.experimental_rerun()
-            else:
-                st.warning("⚠️ لا يمكن إرسال رسالة فارغة.")
-
-# =============================================================
-# التبويبات الرئيسية
-# =============================================================
-tabs = st.tabs(["📝 إدخال البيانات", "💬 المحادثات", "📋 تجميع الكل", "🏆 إنجازاتي"])
-
-# ===== التبويب الأول: إدخال البيانات (المحاسبة الذاتية) =====
+# ===================== تبويب 1: إدخال البيانات (التقييم اليومي) =====================
 with tabs[0]:
-    st.markdown(
-        """
-        <style>
-        body, .stTextInput, .stTextArea, .stSelectbox, .stButton, .stMarkdown, .stDataFrame {
-            direction: rtl;
-            text-align: right;
-        }
-        </style>
-        """, unsafe_allow_html=True
-    )
-
-    st.markdown(f"<h3 style='color: #0000FF; font-weight: bold; font-size: 24px;'>👋 أهلاً {username} | مجموعتك / {mentor_name}</h3>", unsafe_allow_html=True)
-    st.markdown("<h4 style='color: #0000FF; font-weight: bold; font-size: 20px;'>📝 المحاسبة الذاتية</h4>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='color: #0000FF; font-weight: bold;'>👋 أهلاً {username} | مجموعتك: {mentor_name}</h3>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color: #0000FF; font-weight: bold;'>📝 المحاسبة الذاتية اليومية</h4>", unsafe_allow_html=True)
     refresh_button("refresh_tab1")
 
-    # ✅ عرض الرسائل غير المقروءة من قاعدة البيانات
-    cursor.execute("SELECT `from`, `to`, `message`, `read_by_receiver` FROM chat WHERE `to` = %s", (username,))
-    chat_data = cursor.fetchall()
-    if chat_data:
-        unread = [msg for msg in chat_data if msg["message"] and not msg["read_by_receiver"]]
-        senders = list(set([msg["from"] for msg in unread]))
-        if senders:
-            sender_list = "، ".join(senders)
-            st.markdown(f"""
-            <table style="width:100%;">
-                <tr>
-                    <td style="direction: rtl; text-align: right; color: red; font-weight: bold; font-size: 16px;">
-                        📬 يوجد لديك رسائل لم تطلع عليها من: ({sender_list})
-                    </td>
-                </tr>
-            </table>
-            """, unsafe_allow_html=True)
-
-    # ✅ نموذج تقييم ديناميكي حسب تاريخ هجري
-    with st.form("daily_form"):
+    with st.form("daily_evaluation_form"):
+        # تحديد التاريخ: إعطاء خيارات من آخر 7 أيام (بصيغة هجري)
         today = datetime.today().date()
         hijri_dates = []
         for i in range(7):
@@ -240,143 +92,210 @@ with tabs[0]:
                 "Thursday": "الخميس",
                 "Friday": "الجمعة"
             }[weekday]
-            g_date_str = f"{g_date.day}/{g_date.month}/{g_date.year}"
-            hijri_label = f"{arabic_weekday} - {g_date_str}"
-            hijri_dates.append((hijri_label, g_date))
-        hijri_labels = [lbl for lbl, d in hijri_dates]
+            label = f"{arabic_weekday} - {g_date.day}/{g_date.month}/{g_date.year}"
+            hijri_dates.append((label, g_date))
+        hijri_labels = [label for label, _ in hijri_dates]
         selected_label = st.selectbox("📅 اختر التاريخ (هجري)", hijri_labels)
         selected_date = dict(hijri_dates)[selected_label]
-        date_str = selected_date.strftime("%Y-%m-%d")
 
-        # تحميل البنود الديناميكية من قاعدة البيانات
-        criteria = get_dynamic_criteria(conn)
-        answers = {}
+        # تقييم رئيسي: 5 بنود
+        st.markdown("<h4 style='font-weight: bold;'>التقييم الرئيسي (5 بنود)</h4>", unsafe_allow_html=True)
+        options_main = ["في المسجد جماعة = 5 نقاط", "في المنزل جماعة = 4 نقاط", "في المسجد منفرد = 4 نقاط", "في المنزل منفرد = 3 نقاط", "خارج الوقت = 0 نقاط"]
+        mapping_main = {"في المسجد جماعة = 5 نقاط": 5,
+                        "في المنزل جماعة = 4 نقاط": 4,
+                        "في المسجد منفرد = 4 نقاط": 4,
+                        "في المنزل منفرد = 3 نقاط": 3,
+                        "خارج الوقت = 0 نقاط": 0}
+        main_scores = []
+        for i in range(1, 6):
+            score = st.radio(f"البند {i}", options_main, index=0, key=f"main{i}")
+            main_scores.append(mapping_main[score])
 
-        for item in criteria:
-            qid = item["id"]
-            question = item["question"]
-            input_type = item["input_type"]
-            options = item["options"]
-            labels = [opt["option_text"] for opt in options]
+        # السنن الرواتب: يتم حساب عدد الاختيارات المحددة (كل خيار يعتبر نقطة واحدة)
+        st.markdown("<h4 style='font-weight: bold;'>السنن الرواتب</h4>", unsafe_allow_html=True)
+        checkbox_options = ["الفجر = 1", "الظهر = 1", "العصر = 1", "المغرب = 1", "العشاء = 1"]
+        sunnah_count = 0
+        for opt in checkbox_options:
+            if st.checkbox(opt, key=f"sunnah_{opt}"):
+                sunnah_count += 1
 
-            if input_type == "اختيار واحد":
-                selected = st.radio(question, labels, key=f"q_{qid}")
-                answers[qid] = [selected]
-            elif input_type == "اختيار متعدد":
-                selected = st.multiselect(question, labels, key=f"q_{qid}")
-                answers[qid] = selected
+        # تقييم ورد الإمام: اختيار من الخيارات
+        st.markdown("<h4 style='font-weight: bold;'>ورد الإمام</h4>", unsafe_allow_html=True)
+        options_read = ["قرأته لفترتين = 4 نقاط", "قرأته مرة واحدة = 2 نقطة", "لم أقرأ = 0 نقطة"]
+        mapping_read = {"قرأته لفترتين = 4 نقاط": 4,
+                        "قرأته مرة واحدة = 2 نقطة": 2,
+                        "لم أقرأ = 0 نقطة": 0}
+        reading_score = st.radio("اختيار", options_read, key="reading")
 
-        submitted = st.form_submit_button("💾 حفظ")
-        if submitted:
-            total_score = 0
-            for qid, selected_options in answers.items():
-                for opt_text in selected_options:
-                    cursor.execute(
-                        "SELECT score FROM self_assessment_options WHERE question_id = %s AND option_text = %s",
-                        (qid, opt_text)
-                    )
-                    res = cursor.fetchone()
-                    if res:
-                        total_score += res["score"]
+        # أسئلة نعم/لا (2 نقطة): 4 بنود
+        st.markdown("<h4 style='font-weight: bold;'>أسئلة نعم/لا (2 نقطة)</h4>", unsafe_allow_html=True)
+        options_yes2 = ["نعم = 2", "لا = 0"]
+        mapping_yes2 = {"نعم = 2": 2, "لا = 0": 0}
+        yes2_scores = []
+        for i in range(1, 5):
+            score = st.radio(f"سؤال {i}", options_yes2, key=f"yes2_{i}")
+            yes2_scores.append(mapping_yes2[score])
 
-            # التأكد من عدم وجود تقييم سابق في نفس اليوم
-            cursor.execute(
-                "SELECT id FROM self_assessments WHERE username = %s AND DATE(created_at) = %s",
-                (username, selected_date)
-            )
-            if cursor.fetchone():
-                st.warning("⚠️ يوجد تقييم سابق لهذا التاريخ.")
-            else:
-                cursor.execute(
-                    "INSERT INTO self_assessments (username, score, created_at) VALUES (%s, %s, %s)",
-                    (username, total_score, date_str)
-                )
+        # أسئلة نعم/لا (1 نقطة): 2 بنود
+        st.markdown("<h4 style='font-weight: bold;'>أسئلة نعم/لا (1 نقطة)</h4>", unsafe_allow_html=True)
+        options_yes1 = ["نعم = 1", "لا = 0"]
+        mapping_yes1 = {"نعم = 1": 1, "لا = 0": 0}
+        yes1_scores = []
+        for i in range(1, 3):
+            score = st.radio(f"سؤال إضافي {i}", options_yes1, key=f"yes1_{i}")
+            yes1_scores.append(mapping_yes1[score])
+
+        submit = st.form_submit_button("💾 حفظ")
+        if submit:
+            # تحضير قائمة القيم
+            # ترتيب القيم: evaluation_date، username، main1,..., main5، sunnah، reading، yes2_1,..., yes2_4، yes1_1، yes1_2
+            eval_date_str = selected_date.strftime("%Y-%m-%d")
+            values = [eval_date_str, username] + main_scores + [sunnah_count, reading_score] + yes2_scores + yes1_scores
+
+            try:
+                # التحقق مما إذا كان هناك سجل موجود لهذا المستخدم والتاريخ
+                cursor.execute("SELECT id FROM daily_evaluations WHERE username = %s AND evaluation_date = %s", (username, eval_date_str))
+                row = cursor.fetchone()
+                if row:
+                    # تحديث السجل الحالي
+                    update_query = """
+                    UPDATE daily_evaluations
+                    SET main1=%s, main2=%s, main3=%s, main4=%s, main5=%s,
+                        sunnah=%s, reading=%s, yes2_1=%s, yes2_2=%s, yes2_3=%s, yes2_4=%s, yes1_1=%s, yes1_2=%s
+                    WHERE id = %s
+                    """
+                    update_vals = main_scores + [sunnah_count, reading_score] + yes2_scores + yes1_scores + [row["id"]]
+                    cursor.execute(update_query, update_vals)
+                else:
+                    # إدخال سجل جديد
+                    insert_query = """
+                    INSERT INTO daily_evaluations
+                    (evaluation_date, username, main1, main2, main3, main4, main5, sunnah, reading, yes2_1, yes2_2, yes2_3, yes2_4, yes1_1, yes1_2)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """
+                    cursor.execute(insert_query, values)
                 conn.commit()
-                st.success(f"✅ تم حفظ التقييم بنجاح. مجموع النقاط: {total_score}")
-                st.balloons()
+                st.success("✅ تم حفظ التقييم بنجاح")
+                st.experimental_rerun()
+            except Exception as e:
+                st.error(f"❌ حدث خطأ أثناء حفظ التقييم: {e}")
 
-# ===== التبويب الثاني: المحادثات =====
+# ===================== تبويب 2: المحادثات =====================
 with tabs[1]:
-    refresh_button("refresh_chat")
-    show_chat()
-
-# ===== التبويب الثالث: تجميع الكل (عرض كافة التقييمات) =====
-with tabs[2]:
-    st.title("📋 تجميع الكل")
-    refresh_button("refresh_tab2")
-    try:
-        daily_response = supabase.table("daily_data")\
-                            .select("*")\
-                            .eq("username", username)\
-                            .execute()
-        df = pd.DataFrame(daily_response.data) if daily_response.data is not None else pd.DataFrame()
-    except Exception as e:
-        if "Quota exceeded" in str(e) or "429" in str(e):
-            st.error("❌ لقد تجاوزت عدد المرات المسموح بها للاتصال بقاعدة البيانات.\n\nيرجى المحاولة مجددًا بعد دقيقة.")
+    st.markdown("### 💬 المحادثة مع المشرفين")
+    options = [mentor_name]
+    if sp_name:
+        options.append(sp_name)
+    if "selected_mentor_display" not in st.session_state:
+        st.session_state["selected_mentor_display"] = "اختر الشخص"
+    options_display = ["اختر الشخص"] + options
+    selected_mentor_display = st.selectbox("📨 اختر الشخص الذي ترغب بمراسلته", options_display, key="selected_mentor_display")
+    if selected_mentor_display != "اختر الشخص":
+        selected_mentor = selected_mentor_display
+        try:
+            cursor.execute(
+                "SELECT * FROM chat_messages WHERE ((`from`=%s AND `to`=%s) OR (`from`=%s AND `to`=%s)) ORDER BY timestamp ASC",
+                (selected_mentor, username, username, selected_mentor)
+            )
+            chat_messages = cursor.fetchall()
+            chat_df = pd.DataFrame(chat_messages)
+        except Exception as e:
+            st.error(f"❌ حدث خطأ أثناء جلب بيانات الدردشة: {e}")
+            chat_df = pd.DataFrame(columns=["id", "timestamp", "from", "to", "message", "read_by_receiver"])
+        # تحديث حالة الرسائل غير المقروءة
+        if not chat_df.empty and "read_by_receiver" in chat_df.columns:
+            unread = chat_df[(chat_df["from"]==selected_mentor) & (chat_df["to"]==username) & (chat_df["read_by_receiver"]=="")]
+            for msg in unread:
+                try:
+                    cursor.execute("UPDATE chat_messages SET read_by_receiver=%s WHERE id=%s", ("✓", msg["id"]))
+                    conn.commit()
+                except Exception as e:
+                    st.error(f"❌ خطأ أثناء تحديث حالة الرسالة: {e}")
+        if chat_df.empty:
+            st.info("💬 لا توجد رسائل حالياً.")
         else:
-            st.error("❌ حدث خطأ أثناء تحميل البيانات. حاول لاحقًا.")
-        st.stop()
-    if "التاريخ" not in df.columns:
-        st.warning("⚠️ لا توجد بيانات بعد في جدول التقييمات. الرجاء البدء بإدخال أول تقييم.")
-        st.stop()
-        
-    df["التاريخ"] = pd.to_datetime(df["التاريخ"], errors="coerce")
-    df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
-    
+            for _, msg in chat_df.iterrows():
+                if msg["from"] == username:
+                    st.markdown(f"<p style='color:#000080'><b> أنت:</b> {msg['message']}</p>", unsafe_allow_html=True)
+                else:
+                    st.markdown(f"<p style='color:#8B0000'><b>{msg['from']}:</b> {msg['message']}</p>", unsafe_allow_html=True)
+        new_msg = st.text_area("✏️ اكتب رسالتك هنا", height=100, key="chat_message")
+        if st.button("📨 إرسال الرسالة", key="send_chat"):
+            if new_msg.strip():
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                try:
+                    cursor.execute(
+                        "INSERT INTO chat_messages (timestamp, `from`, `to`, message, read_by_receiver) VALUES (%s, %s, %s, %s, %s)",
+                        (timestamp, username, selected_mentor, new_msg, "")
+                    )
+                    conn.commit()
+                    st.success("✅ تم إرسال الرسالة")
+                    st.experimental_rerun()
+                except Exception as e:
+                    st.error(f"❌ حدث خطأ أثناء إرسال الرسالة: {e}")
+            else:
+                st.warning("⚠️ لا يمكن إرسال رسالة فارغة.")
+
+# ===================== تبويب 3: تقارير المجموع =====================
+with tabs[2]:
+    st.title("📊 تقارير المجموع للفترة")
+    refresh_button("refresh_tab3")
     col1, col2 = st.columns(2)
     with col1:
-        start_date = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7))
+        start_date = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7), key="report_start")
     with col2:
-        end_date = st.date_input("إلى تاريخ", datetime.today().date())
-        
-    mask = (df["التاريخ"] >= pd.to_datetime(start_date)) & (df["التاريخ"] <= pd.to_datetime(end_date))
-    
-    # استبعاد الأعمدة التي لا تخص التقييم (بيانات شخصية والتاريخ)
-    exclude_columns = ["id", "username", "level", "التاريخ"]
-    filtered = df[mask].drop(columns=exclude_columns, errors="ignore")
-    
-    if filtered.empty:
-        st.warning("⚠️ لا توجد بيانات في الفترة المحددة.")
+        end_date = st.date_input("إلى تاريخ", datetime.today().date(), key="report_end")
+    try:
+        query = "SELECT * FROM daily_evaluations WHERE evaluation_date BETWEEN %s AND %s AND username = %s"
+        cursor.execute(query, (start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d"), username))
+        rows = cursor.fetchall()
+        report_df = pd.DataFrame(rows)
+    except Exception as e:
+        st.error(f"❌ حدث خطأ أثناء جلب بيانات التقارير: {e}")
+        report_df = pd.DataFrame()
+    if report_df.empty:
+        st.info("⚠️ لا توجد بيانات في الفترة المحددة.")
     else:
-        # تحويل الأعمدة المتبقية إلى أرقام
-        for col in filtered.columns:
-            filtered[col] = pd.to_numeric(filtered[col], errors="coerce").fillna(0)
-        totals = filtered.sum(numeric_only=True)
-        total_score = totals.sum()
+        # نفترض أن كافة أعمدة التقييم عددية (باستثناء id وusername وevaluation_date)
+        numeric_cols = report_df.select_dtypes(include=["number"]).columns.tolist()
+        if "id" in numeric_cols:
+            numeric_cols.remove("id")
+        if "username" in numeric_cols:
+            numeric_cols.remove("username")
+        if "evaluation_date" in numeric_cols:
+            numeric_cols.remove("evaluation_date")
+        aggregated = report_df[numeric_cols].sum()
+        total_score = aggregated.sum()
         st.metric(label="📌 مجموعك الكلي لجميع البنود", value=int(total_score))
-        result_df = pd.DataFrame(totals, columns=["المجموع"])
-        result_df.index.name = "البند"
-        result_df = result_df.reset_index()
+        result_df = pd.DataFrame(aggregated).reset_index()
+        result_df.columns = ["البند", "المجموع"]
         result_df = result_df.sort_values(by="المجموع", ascending=True)
-        result_df = result_df[["المجموع", "البند"]]
         result_df["البند"] = result_df["البند"].apply(lambda x: f"<p style='color:#8B0000; text-align:center'>{x}</p>")
         result_df["المجموع"] = result_df["المجموع"].apply(lambda x: f"<p style='color:#000080; text-align:center'>{x}</p>")
         st.markdown(result_df.to_html(escape=False, index=False), unsafe_allow_html=True)
 
-# ===== التبويب الرابع: إنجازاتي =====
+# ===================== تبويب 4: الإنجازات =====================
 with tabs[3]:
-    st.title("🏆 إنجازاتي")
+    st.title("🗒️ الإنجازات")
     refresh_button("refresh_notes")
     try:
-        notes_response = supabase.table("notes")\
-                            .select("*")\
-                            .eq("الطالب", username)\
-                            .execute()
-        notes_data = pd.DataFrame(notes_response.data) if notes_response.data is not None else pd.DataFrame()
+        query = "SELECT * FROM student_achievements WHERE student = %s ORDER BY timestamp DESC"
+        cursor.execute(query, (username,))
+        ach_rows = cursor.fetchall()
+        ach_df = pd.DataFrame(ach_rows)
     except Exception as e:
-        st.error("❌ تعذر تحميل بيانات الملاحظات.")
-        st.stop()
-    if notes_data.empty or "الطالب" not in notes_data.columns:
+        st.error(f"❌ حدث خطأ أثناء جلب بيانات الإنجازات: {e}")
+        ach_df = pd.DataFrame()
+    if ach_df.empty:
         st.info("📭 لا توجد ملاحظات حتى الآن.")
     else:
-        user_notes = notes_data[notes_data["الطالب"] == username]
-        if user_notes.empty:
-            st.warning("📭 لا توجد ملاحظات مسجلة لك حتى الآن.")
-        else:
-            user_notes = user_notes[["timestamp", "المشرف", "الملاحظة"]]
-            user_notes.rename(columns={
-                "timestamp": "📅 التاريخ",
-                "المشرف": "👤 المشرف",
-                "الملاحظة": "📝 الملاحظة"
-            }, inplace=True)
-            st.dataframe(user_notes, use_container_width=True)
+        ach_df.rename(columns={
+            "timestamp": "📅 التاريخ",
+            "supervisor": "👤 المشرف",
+            "achievement": "📝 الإنجاز"
+        }, inplace=True)
+        st.dataframe(ach_df, use_container_width=True)
+
+# إغلاق الاتصال
+cursor.close()
+conn.close()
