@@ -48,13 +48,15 @@ if selected_tab == "إدارة الأعضاء":
 
     choice = st.selectbox("نوع الأعضاء", ["المستوى", "الآدمن", "السوبر مشرف", "المشرف", "المستخدم"], key="user_filter")
 
+    admins, users = [], []
+
     if choice == "المستوى":
         selected_level = st.selectbox("اختر المستوى", [lvl['level_name'] for lvl in levels], key="view_level")
-        cursor.execute("SELECT * FROM admins WHERE level = %s", (selected_level,))
+        cursor.execute("SELECT * FROM admins WHERE level = %s AND is_deleted = FALSE", (selected_level,))
         admins = cursor.fetchall()
-        cursor.execute("SELECT * FROM users WHERE level = %s", (selected_level,))
+        cursor.execute("SELECT * FROM users WHERE level = %s AND is_deleted = FALSE", (selected_level,))
         users = cursor.fetchall()
-        
+
     elif choice in ["الآدمن", "السوبر مشرف", "المشرف"]:
         role_map = {
             "الآدمن": "admin",
@@ -62,29 +64,52 @@ if selected_tab == "إدارة الأعضاء":
             "المشرف": "supervisor"
         }
         role = role_map[choice]
-        cursor.execute("SELECT * FROM admins WHERE role = %s", (role,))
+        cursor.execute("SELECT * FROM admins WHERE role = %s AND is_deleted = FALSE", (role,))
         admins = cursor.fetchall()
-        if admins:
-            df = pd.DataFrame(admins)
-            st.dataframe(df)
-        else:
-            st.info("لا يوجد أعضاء في هذا النوع.")
 
     elif choice == "المستخدم":
-        cursor.execute("SELECT * FROM users")
+        cursor.execute("SELECT * FROM users WHERE is_deleted = FALSE")
         users = cursor.fetchall()
-        if users:
-            df = pd.DataFrame(users)
-            st.dataframe(df)
-        else:
-            st.info("لا يوجد مستخدمين.")
+
+    # عرض الجداول مع أدوات التحكم
+    if admins:
+        st.subheader("👨‍💼 الإداريون")
+        for admin in admins:
+            with st.expander(f"👤 {admin['full_name']} - {admin['username']} ({admin['role']})"):
+                st.markdown(f"المستوى: {admin['level']}")
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    if st.button(f"📝 تعديل {admin['username']}", key=f"edit_admin_{admin['id']}"):
+                        st.warning("🚧 لم يتم تنفيذ خاصية التعديل بعد")
+                with col2:
+                    if st.button(f"🗑️ حذف {admin['username']}", key=f"delete_admin_{admin['id']}"):
+                        cursor.execute("UPDATE admins SET is_deleted = TRUE WHERE id = %s", (admin['id'],))
+                        conn.commit()
+                        st.success("✅ تم حذف الإداري")
+                        st.rerun()
+
+    if users:
+        st.subheader("👥 المستخدمون")
+        for user in users:
+            with st.expander(f"👤 {user['full_name']} - {user['username']}"):
+                st.markdown(f"المستوى: {user['level']} | المشرف: {user['mentor']}")
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    if st.button(f"📝 تعديل {user['username']}", key=f"edit_user_{user['id']}"):
+                        st.warning("🚧 لم يتم تنفيذ خاصية التعديل بعد")
+                with col2:
+                    if st.button(f"🗑️ حذف {user['username']}", key=f"delete_user_{user['id']}"):
+                        cursor.execute("UPDATE users SET is_deleted = TRUE WHERE id = %s", (user['id'],))
+                        conn.commit()
+                        st.success("✅ تم حذف المستخدم")
+                        st.rerun()
 
     # 🧑‍💼 إضافة آدمن مرتبط بمستوى
     st.subheader("🧑‍💼 إضافة مدير للمستوى")
     with st.form("add_admin"):
         full_name = st.text_input("الاسم الكامل للآدمن")
         username = st.text_input("اسم المستخدم")
-        password = st.text_input("كلمة المرور")
+        password = st.text_input("كلمة المرور", type="password")
         level_options = [lvl['level_name'] for lvl in levels]
         level = st.selectbox("اختر المستوى", level_options)
         submit_admin = st.form_submit_button("➕ إضافة")
@@ -107,7 +132,7 @@ if selected_tab == "إدارة الأعضاء":
     with st.form("add_sp"):
         full_name = st.text_input("الاسم الكامل للسوبر مشرف")
         username = st.text_input("اسم المستخدم")
-        password = st.text_input("كلمة المرور")
+        password = st.text_input("كلمة المرور", type="password")
         level = st.selectbox("اختر المستوى للسوبر مشرف", level_options, key="sp_level")
         submit_sp = st.form_submit_button("➕ إضافة سوبر مشرف")
 
@@ -126,7 +151,7 @@ if selected_tab == "إدارة الأعضاء":
 
     # 👨‍💼 إضافة مشرف مرتبط بسوبر مشرف
     st.subheader("👨‍💼 إضافة مشرف")
-    cursor.execute("SELECT username, full_name, level FROM admins WHERE role = 'sp'")
+    cursor.execute("SELECT username, full_name, level FROM admins WHERE role = 'sp' AND is_deleted = FALSE")
     supervisors = cursor.fetchall()
     if not supervisors:
         st.info("🔸 لا يوجد سوبر مشرفين حالياً.")
@@ -134,7 +159,7 @@ if selected_tab == "إدارة الأعضاء":
         with st.form("add_supervisor"):
             full_name = st.text_input("اسم المشرف")
             username = st.text_input("اسم المستخدم للمشرف")
-            password = st.text_input("كلمة المرور للمشرف")
+            password = st.text_input("كلمة المرور للمشرف", type="password")
             selected_sp = st.selectbox("اختر سوبر مشرف", [f"{s['full_name']} ({s['username']})" for s in supervisors])
             sp_username = selected_sp.split("(")[-1].replace(")", "").strip()
             sp_level = next((s['level'] for s in supervisors if s['username'] == sp_username), None)
@@ -182,10 +207,29 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
     if questions:
         for q in questions:
             with st.expander(f"{q['question']} ({q['input_type']})"):
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    if st.button(f"📝 تعديل البند {q['id']}", key=f"edit_q_{q['id']}"):
+                        st.warning("🚧 لم يتم تنفيذ التعديل بعد")
+                with col2:
+                    if st.button(f"🗑️ حذف البند {q['id']}", key=f"delete_q_{q['id']}"):
+                        cursor.execute("UPDATE self_assessment_templates SET is_deleted = TRUE WHERE id = %s", (q["id"],))
+                        conn.commit()
+                        st.success("✅ تم حذف البند")
+                        st.rerun()
+
                 cursor.execute("SELECT * FROM self_assessment_options WHERE question_id = %s", (q["id"],))
                 options = cursor.fetchall()
                 for opt in options:
-                    st.markdown(f"🔘 {opt['option_text']} - {opt['score']} نقطة")
+                    col3, col4 = st.columns([4, 1])
+                    with col3:
+                        st.markdown(f"🔘 {opt['option_text']} - {opt['score']} نقطة")
+                    with col4:
+                        if st.button("🗑️ حذف", key=f"delete_opt_{opt['id']}"):
+                            cursor.execute("DELETE FROM self_assessment_options WHERE id = %s", (opt["id"],))
+                            conn.commit()
+                            st.success("✅ تم حذف الخيار")
+                            st.rerun()
 
                 with st.form(f"add_option_{q['id']}"):
                     option_text = st.text_input("النص", key=f"opt_text_{q['id']}")
@@ -202,11 +246,10 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                         st.rerun()
 
 # ========== التبويب الثالث: نقاطي ==========
-elif selected_tab == "نقاطي (تقييم من المشرف)":
+elif selected_tab == "نقاطي \(تقييم من المشرف\)":
     st.header("🏅 إعداد بنود تقييم من المشرف")
 
     st.subheader("➕ إضافة بند جديد")
-
     with st.form("add_supervisor_criterion"):
         level = st.selectbox("اختر المستوى", [lvl['level_name'] for lvl in levels], key="supervised_level")
         question = st.text_input("عنوان البند")
@@ -223,82 +266,23 @@ elif selected_tab == "نقاطي (تقييم من المشرف)":
             st.rerun()
 
     st.subheader("📋 البنود الحالية حسب المستوى")
-
     selected_supervised_level = st.selectbox("اختر المستوى", [lvl['level_name'] for lvl in levels], key="supervised_view")
 
     cursor.execute("SELECT * FROM supervisor_criteria WHERE level = %s", (selected_supervised_level,))
     results = cursor.fetchall()
 
     if results:
-        df = pd.DataFrame(results)
-        df.rename(columns={"question": "البند", "max_score": "الدرجة القصوى"}, inplace=True)
-        st.dataframe(df[["البند", "الدرجة القصوى"]], use_container_width=True)
+        for row in results:
+            with st.expander(f"{row['question']} (درجة كاملة: {row['max_score']})"):
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    if st.button(f"📝 تعديل البند {row['id']}", key=f"edit_sup_{row['id']}"):
+                        st.warning("🚧 خاصية التعديل لم تُفعّل بعد")
+                with col2:
+                    if st.button(f"🗑️ حذف البند {row['id']}", key=f"delete_sup_{row['id']}"):
+                        cursor.execute("DELETE FROM supervisor_criteria WHERE id = %s", (row['id'],))
+                        conn.commit()
+                        st.success("✅ تم حذف البند")
+                        st.rerun()
     else:
         st.info("لا توجد بنود تقييم لهذا المستوى بعد.")
-
-# ========== التبويب الرابع: نقل المستويات ==========
-elif selected_tab == "نقل المستويات":
-    st.header("🔄 إدارة وربط المستويات")
-
-    action = st.selectbox("اختر العملية", ["نقل سوبر مشرف إلى مستوى", "نقل مشرف إلى سوبر مشرف", "نقل مستخدم إلى مشرف"])
-
-    if action == "نقل سوبر مشرف إلى مستوى":
-        cursor.execute("SELECT username, full_name FROM admins WHERE role = 'sp'")
-        sps = cursor.fetchall()
-        if not sps:
-            st.warning("لا يوجد سوبر مشرفين.")
-        else:
-            selected_sp = st.selectbox("اختر السوبر مشرف", [f"{s['full_name']} ({s['username']})" for s in sps])
-            sp_username = selected_sp.split("(")[-1].replace(")", "").strip()
-            level = st.selectbox("اختر المستوى الجديد", [lvl['level_name'] for lvl in levels])
-            if st.button("🔁 نقل"):
-                cursor.execute("UPDATE admins SET level = %s WHERE username = %s", (level, sp_username))
-                cursor.execute("UPDATE admins SET level = %s WHERE mentor = %s", (level, sp_username))
-                cursor.execute("UPDATE users SET level = %s WHERE mentor IN (SELECT username FROM admins WHERE mentor = %s)", (level, sp_username))
-                conn.commit()
-                st.success("✅ تم نقل السوبر مشرف والمشرفين والمستخدمين")
-
-    elif action == "نقل مشرف إلى سوبر مشرف":
-        cursor.execute("SELECT username, full_name FROM admins WHERE role = 'supervisor'")
-        supervisors = cursor.fetchall()
-        cursor.execute("SELECT username, full_name, level FROM admins WHERE role = 'sp'")
-        sps = cursor.fetchall()
-
-        if not supervisors or not sps:
-            st.warning("تأكد من وجود مشرفين وسوبر مشرفين.")
-        else:
-            selected_sup = st.selectbox("اختر المشرف", [f"{s['full_name']} ({s['username']})" for s in supervisors])
-            sup_username = selected_sup.split("(")[-1].replace(")", "").strip()
-            selected_sp = st.selectbox("اختر السوبر مشرف الجديد", [f"{s['full_name']} ({s['username']})" for s in sps])
-            sp_username = selected_sp.split("(")[-1].replace(")", "").strip()
-            sp_level = next((s['level'] for s in sps if s['username'] == sp_username), None)
-
-            if st.button("🔁 نقل المشرف"):
-                cursor.execute("UPDATE admins SET mentor = %s, level = %s WHERE username = %s", (sp_username, sp_level, sup_username))
-                cursor.execute("UPDATE users SET level = %s WHERE mentor = %s", (sp_level, sup_username))
-                conn.commit()
-                st.success("✅ تم نقل المشرف والمستخدمين التابعين له")
-
-    elif action == "نقل مستخدم إلى مشرف":
-        cursor.execute("SELECT username, full_name FROM users")
-        users = cursor.fetchall()
-        cursor.execute("SELECT username, full_name, level FROM admins WHERE role = 'supervisor'")
-        supervisors = cursor.fetchall()
-
-        if not users or not supervisors:
-            st.warning("تأكد من وجود مستخدمين ومشرفين.")
-        else:
-            selected_user = st.selectbox("اختر المستخدم", [f"{u['full_name']} ({u['username']})" for u in users])
-            user_username = selected_user.split("(")[-1].replace(")", "").strip()
-            selected_sup = st.selectbox("اختر المشرف الجديد", [f"{s['full_name']} ({s['username']})" for s in supervisors])
-            sup_username = selected_sup.split("(")[-1].replace(")", "").strip()
-            sup_level = next((s['level'] for s in supervisors if s['username'] == sup_username), None)
-
-            if st.button("🔁 نقل المستخدم"):
-                cursor.execute("UPDATE users SET mentor = %s, level = %s WHERE username = %s", (sup_username, sup_level, user_username))
-                conn.commit()
-                st.success("✅ تم نقل المستخدم")
-
-# ========== إغلاق الاتصال ==========
-cursor.close()
-conn.close()
