@@ -1,4 +1,3 @@
--- ✅ التبويبات الرئيسية
 import streamlit as st
 import pymysql
 import pandas as pd
@@ -82,11 +81,8 @@ if selected_tab == "إدارة الأعضاء":
         else:
             st.info("لا يوجد مستخدمين.")
 
-    # تضمين إضافات الأعضاء هنا (تمّت إضافتها سابقًا في الملف)
-
     # 🧑‍💼 إضافة آدمن مرتبط بمستوى
     st.subheader("🧑‍💼 إضافة مدير للمستوى")
-
     with st.form("add_admin"):
         full_name = st.text_input("الاسم الكامل للآدمن")
         username = st.text_input("اسم المستخدم")
@@ -108,13 +104,12 @@ if selected_tab == "إدارة الأعضاء":
                 st.success("✅ تم إضافة الآدمن")
                 st.rerun()
 
-    # 👨‍🏫 إضافة سوبر مشرف مرتبط بمستوى
+    # 👨‍🏫 إضافة سوبر مشرف
     st.subheader("👨‍🏫 إضافة سوبر مشرف")
-
     with st.form("add_sp"):
         full_name = st.text_input("الاسم الكامل للسوبر مشرف")
-        username = st.text_input("اسم المستخدم للسوبر مشرف")
-        password = st.text_input("كلمة المرور للسوبر مشرف")
+        username = st.text_input("اسم المستخدم")
+        password = st.text_input("كلمة المرور")
         level = st.selectbox("اختر المستوى للسوبر مشرف", level_options, key="sp_level")
         submit_sp = st.form_submit_button("➕ إضافة سوبر مشرف")
 
@@ -131,12 +126,10 @@ if selected_tab == "إدارة الأعضاء":
                 st.success("✅ تم إضافة السوبر مشرف")
                 st.rerun()
 
-    # 👨‍💼 إضافة مشرف مباشر مرتبط بسوبر مشرف
+    # 👨‍💼 إضافة مشرف مرتبط بسوبر مشرف
     st.subheader("👨‍💼 إضافة مشرف")
-
     cursor.execute("SELECT username, full_name, level FROM admins WHERE role = 'sp'")
     supervisors = cursor.fetchall()
-
     if not supervisors:
         st.info("🔸 لا يوجد سوبر مشرفين حالياً.")
     else:
@@ -145,7 +138,7 @@ if selected_tab == "إدارة الأعضاء":
             username = st.text_input("اسم المستخدم للمشرف")
             password = st.text_input("كلمة المرور للمشرف")
             selected_sp = st.selectbox("اختر سوبر مشرف", [f"{s['full_name']} ({s['username']})" for s in supervisors])
-            sp_username = selected_sp.split('(')[-1].replace(')', '').strip()
+            sp_username = selected_sp.split("(")[-1].replace(")", "").strip()
             sp_level = next((s['level'] for s in supervisors if s['username'] == sp_username), None)
             submit_sup = st.form_submit_button("➕ إضافة مشرف")
 
@@ -161,14 +154,11 @@ if selected_tab == "إدارة الأعضاء":
                     conn.commit()
                     st.success("✅ تم إضافة المشرف")
                     st.rerun()
-
 # ========== التبويب الثاني: إعداد نموذج التقييم الذاتي ==========
 elif selected_tab == "إعداد نموذج التقييم الذاتي":
     st.header("📝 إعداد نموذج التقييم الذاتي")
 
-    # اختيار أو إنشاء بند جديد
     st.subheader("➕ إضافة بند تقييم")
-
     with st.form("add_criterion"):
         question = st.text_input("عنوان البند (السؤال)")
         input_type = st.selectbox("نوع الإجابة", ["اختيار واحد", "اختيار متعدد"])
@@ -183,15 +173,12 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
             st.success("✅ تم إضافة البند")
             st.rerun()
 
-    # جلب البنود الحالية
     cursor.execute("SELECT * FROM self_assessment_templates")
     questions = cursor.fetchall()
-
     if questions:
         st.subheader("🧩 البنود الحالية")
         for q in questions:
             with st.expander(f"{q['question']} ({q['input_type']})"):
-                # عرض الخيارات المرتبطة
                 cursor.execute("SELECT * FROM self_assessment_options WHERE question_id = %s", (q["id"],))
                 options = cursor.fetchall()
                 for opt in options:
@@ -199,7 +186,7 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
 
                 with st.form(f"add_option_{q['id']}"):
                     option_text = st.text_input("النص", key=f"opt_text_{q['id']}")
-                    score = st.number_input("الدرجة", min_value=0, max_value=100, step=1, key=f"opt_score_{q['id']}")
+                    score = st.number_input("الدرجة", 0, 100, step=1, key=f"opt_score_{q['id']}")
                     submitted_opt = st.form_submit_button("➕ أضف خيار")
 
                     if submitted_opt and option_text:
@@ -210,15 +197,11 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                         conn.commit()
                         st.success("✅ تم إضافة الخيار")
                         st.rerun()
-    else:
-        st.info("لا توجد بنود تقييم بعد.")
 
-
-# ========== التبويب الثالث: نقاطي (تقييم من المشرف) ==========
+# ========== التبويب الثالث: نقاطي ==========
 elif selected_tab == "نقاطي (تقييم من المشرف)":
     st.header("🏅 التقييم اليدوي للمستخدمين")
 
-    # جلب المشرفين
     cursor.execute("SELECT username, full_name FROM admins WHERE role = 'supervisor'")
     supervisors = cursor.fetchall()
     if not supervisors:
@@ -227,7 +210,6 @@ elif selected_tab == "نقاطي (تقييم من المشرف)":
         selected_supervisor = st.selectbox("اختر المشرف", [f"{s['full_name']} ({s['username']})" for s in supervisors])
         mentor_username = selected_supervisor.split("(")[-1].replace(")", "").strip()
 
-        # جلب المستخدمين المرتبطين به
         cursor.execute("SELECT username, full_name FROM users WHERE mentor = %s", (mentor_username,))
         mentees = cursor.fetchall()
         if not mentees:
@@ -249,8 +231,7 @@ elif selected_tab == "نقاطي (تقييم من المشرف)":
                     conn.commit()
                     st.success("✅ تم تسجيل التقييم")
 
-    # عرض جميع التقييمات
-    st.subheader("📊 جميع التقييمات المسجلة")
+    st.subheader("📊 جميع التقييمات")
     cursor.execute("SELECT * FROM user_scores ORDER BY created_at DESC")
     scores = cursor.fetchall()
     if scores:
@@ -259,7 +240,6 @@ elif selected_tab == "نقاطي (تقييم من المشرف)":
         st.dataframe(df)
     else:
         st.info("لا توجد تقييمات بعد.")
-
 
 # ========== التبويب الرابع: نقل المستويات ==========
 elif selected_tab == "نقل المستويات":
@@ -278,15 +258,15 @@ elif selected_tab == "نقل المستويات":
             level = st.selectbox("اختر المستوى الجديد", [lvl['level_name'] for lvl in levels])
             if st.button("🔁 نقل"):
                 cursor.execute("UPDATE admins SET level = %s WHERE username = %s", (level, sp_username))
-                cursor.execute("UPDATE admins SET level = %s WHERE mentor = %s", (level, sp_username))  # تحديث المشرفين
-                cursor.execute("UPDATE users SET level = %s WHERE mentor IN (SELECT username FROM admins WHERE mentor = %s)", (level, sp_username))  # تحديث المستخدمين
+                cursor.execute("UPDATE admins SET level = %s WHERE mentor = %s", (level, sp_username))
+                cursor.execute("UPDATE users SET level = %s WHERE mentor IN (SELECT username FROM admins WHERE mentor = %s)", (level, sp_username))
                 conn.commit()
                 st.success("✅ تم نقل السوبر مشرف والمشرفين والمستخدمين")
 
     elif action == "نقل مشرف إلى سوبر مشرف":
         cursor.execute("SELECT username, full_name FROM admins WHERE role = 'supervisor'")
         supervisors = cursor.fetchall()
-        cursor.execute("SELECT username, full_name FROM admins WHERE role = 'sp'")
+        cursor.execute("SELECT username, full_name, level FROM admins WHERE role = 'sp'")
         sps = cursor.fetchall()
 
         if not supervisors or not sps:
@@ -323,9 +303,7 @@ elif selected_tab == "نقل المستويات":
                 cursor.execute("UPDATE users SET mentor = %s, level = %s WHERE username = %s", (sup_username, sup_level, user_username))
                 conn.commit()
                 st.success("✅ تم نقل المستخدم")
-# ========== ختامي ==========
-# إغلاق الاتصال بقاعدة البيانات
+
+# ========== إغلاق الاتصال ==========
 cursor.close()
 conn.close()
-
-st.caption("تم تطوير هذه اللوحة لإدارة هيكلية البرنامج بشكل كامل بواسطة المدير العام.")
