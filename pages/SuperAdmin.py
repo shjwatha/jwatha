@@ -247,7 +247,6 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
 
 # ========== التبويب الثالث: نقاطي ==========
 elif selected_tab == "نقاطي (تقييم من المشرف)":
-
     st.header("🏅 إعداد بنود تقييم من المشرف")
 
     st.subheader("➕ إضافة بند جديد")
@@ -275,29 +274,28 @@ elif selected_tab == "نقاطي (تقييم من المشرف)":
     if results:
         for row in results:
             with st.expander(f"{row['question']} (درجة كاملة: {row['max_score']})"):
-    with st.form(f"edit_delete_form_{row['id']}"):
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            new_question = st.text_input("عنوان البند", value=row['question'], key=f"edit_q_{row['id']}")
-            new_score = st.number_input("الدرجة الكاملة", min_value=1, max_value=100, value=row['max_score'], key=f"edit_s_{row['id']}")
-        with col2:
-                    update_btn = st.form_submit_button("📝 تحديث")
-                    delete_btn = st.form_submit_button("🗑️ حذف")
+                with st.form(f"edit_delete_form_{row['id']}"):
+                    col1, col2 = st.columns([1, 1])
+                    with col1:
+                        new_question = st.text_input("عنوان البند", value=row['question'], key=f"edit_q_{row['id']}")
+                        new_score = st.number_input("الدرجة الكاملة", min_value=1, max_value=100, value=row['max_score'], key=f"edit_s_{row['id']}")
+                    with col2:
+                        update_btn = st.form_submit_button("📝 تحديث")
+                        delete_btn = st.form_submit_button("🗑️ حذف")
 
-                if update_btn:
-                    cursor.execute(
-                        "UPDATE supervisor_criteria SET question = %s, max_score = %s WHERE id = %s",
-                        (new_question, new_score, row['id'])
-                    )
-                    conn.commit()
-                    st.success("✅ تم التحديث")
-                    st.rerun()
+                    if update_btn:
+                        cursor.execute(
+                            "UPDATE supervisor_criteria SET question = %s, max_score = %s WHERE id = %s",
+                            (new_question, new_score, row['id'])
+                        )
+                        conn.commit()
+                        st.success("✅ تم التحديث")
+                        st.rerun()
 
-                if delete_btn:
-                    cursor.execute("DELETE FROM supervisor_criteria WHERE id = %s", (row['id'],))
-                    conn.commit()
-                    st.success("✅ تم الحذف")
-                    st.rerun()
-
+                    if delete_btn:
+                        cursor.execute("DELETE FROM supervisor_criteria WHERE id = %s", (row['id'],))
+                        conn.commit()
+                        st.success("✅ تم الحذف")
+                        st.rerun()
     else:
         st.info("لا توجد بنود تقييم لهذا المستوى بعد.")
