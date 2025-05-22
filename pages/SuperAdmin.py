@@ -172,17 +172,18 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
             conn.commit()
             st.success("✅ تم إضافة البند")
             st.rerun()
-    st.subheader("🧩 البنود الحالية حسب المستوى")
-    st.markdown("### اختر المستوى لعرض البنود")
-    selected_template_level = st.radio(
-        "المستويات:",
-        [lvl['level_name'] for lvl in levels],
-        horizontal=True,
-        key="template_view_level_radio"
-    )
 
-    cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (selected_template_level,))
-    questions = cursor.fetchall()
+    st.subheader("🧩 البنود الحالية حسب المستوى")
+    selected_template_level = st.selectbox("اختر المستوى لعرض البنود", [lvl['level_name'] for lvl in levels], key="template_view_level")
+
+    try:
+        query = "SELECT * FROM self_assessment_templates WHERE level = %s"
+        cursor.execute(query, (selected_template_level,))
+        questions = cursor.fetchall()
+    except Exception as e:
+        st.error(f"❌ حدث خطأ أثناء جلب البنود الخاصة بالمستوى: {e}")
+        questions = []
+
 
     if questions:
         for q in questions:
