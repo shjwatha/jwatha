@@ -213,13 +213,18 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
             )
             conn.commit()
             st.success("✅ تم إضافة البند")
-            st.experimental_rerun()  # إعادة تحميل الصفحة بعد إضافة البند
+            # تحديث البيانات في الجلسة بدون الحاجة لإعادة تحميل الصفحة
+            st.session_state.questions = cursor.fetchall()  # تحديث البيانات في الجلسة
+            st.experimental_rerun()  # محاولة إعادة تحميل الصفحة في حال الضرورة
 
     st.subheader("🧩 البنود الحالية حسب المستوى")
     selected_template_level = st.selectbox("اختر المستوى لعرض البنود", [lvl['level_name'] for lvl in levels], key="template_view_level")
 
     cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (selected_template_level,))
     questions = cursor.fetchall()
+
+    # حفظ البيانات في الجلسة
+    st.session_state.questions = questions
 
     if questions:
         for q in questions:
@@ -241,13 +246,18 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                             cursor.execute("UPDATE self_assessment_templates SET question = %s, input_type = %s WHERE id = %s", (new_question, new_input_type, q["id"]))
                             conn.commit()
                             st.success("✅ تم التحديث")
-                            st.experimental_rerun()  # إعادة تحميل الصفحة بعد التحديث
+                            # تحديث البيانات في الجلسة بعد التحديث
+                            st.session_state.questions = cursor.fetchall()
+                            st.experimental_rerun()
+
                 with col2:
                     if st.button(f"🗑️ حذف البند {q['id']}", key=f"delete_q_button_{q['id']}"):
                         cursor.execute("UPDATE self_assessment_templates SET is_deleted = TRUE WHERE id = %s", (q["id"],))
                         conn.commit()
                         st.success("✅ تم حذف البند")
-                        st.experimental_rerun()  # إعادة تحميل الصفحة بعد الحذف
+                        # تحديث البيانات في الجلسة بعد الحذف
+                        st.session_state.questions = cursor.fetchall()
+                        st.experimental_rerun()
 
                 cursor.execute("SELECT * FROM self_assessment_options WHERE question_id = %s", (q["id"],))
                 options = cursor.fetchall()
@@ -260,7 +270,9 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                             cursor.execute("DELETE FROM self_assessment_options WHERE id = %s", (opt["id"],))
                             conn.commit()
                             st.success("✅ تم حذف الخيار")
-                            st.experimental_rerun()  # إعادة تحميل الصفحة بعد حذف الخيار
+                            # تحديث البيانات في الجلسة بعد الحذف
+                            st.session_state.questions = cursor.fetchall()
+                            st.experimental_rerun()
 
                 with st.form(f"add_option_{q['id']}"):
                     option_text = st.text_input(f"النص الخاص بالخيار {q['id']}", key=f"opt_text_{q['id']}")
@@ -274,7 +286,9 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                         )
                         conn.commit()
                         st.success("✅ تم إضافة الخيار")
-                        st.experimental_rerun()  # إعادة تحميل الصفحة بعد إضافة الخيار
+                        # تحديث البيانات في الجلسة بعد إضافة الخيار
+                        st.session_state.questions = cursor.fetchall()
+                        st.experimental_rerun()
 
 # ========== التبويب الثالث: نقاطي ==========
 elif selected_tab == "نقاطي (تقييم من المشرف)":
