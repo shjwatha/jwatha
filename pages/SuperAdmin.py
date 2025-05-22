@@ -190,16 +190,13 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
         submitted_q = st.form_submit_button("➕ أضف البند")
 
         if submitted_q and question:
-            try:
-                cursor.execute(
-                    "INSERT INTO self_assessment_templates (question, input_type, level) VALUES (%s, %s, %s)",
-                    (question, input_type, level)
-                )
-                conn.commit()
-                st.success("✅ تم إضافة البند")
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ حدث خطأ أثناء إضافة البند: {e}")
+            cursor.execute(
+                "INSERT INTO self_assessment_templates (question, input_type, level) VALUES (%s, %s, %s)",
+                (question, input_type, level)
+            )
+            conn.commit()
+            st.success("✅ تم إضافة البند")
+            st.rerun()
 
     st.subheader("🧩 البنود الحالية حسب المستوى")
     selected_template_level = st.selectbox("اختر المستوى لعرض البنود", [lvl['level_name'] for lvl in levels], key="template_view_level")
@@ -230,25 +227,19 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                         delete_btn = st.form_submit_button("🗑️ حذف")
 
                     if update_btn:
-                        try:
-                            cursor.execute(
-                                "UPDATE self_assessment_templates SET question = %s, score = %s WHERE id = %s",
-                                (new_question, new_score, q['id'])
-                            )
-                            conn.commit()
-                            st.success("✅ تم التحديث")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ حدث خطأ أثناء التحديث: {e}")
+                        cursor.execute(
+                            "UPDATE self_assessment_templates SET question = %s, score = %s WHERE id = %s",
+                            (new_question, new_score, q['id'])
+                        )
+                        conn.commit()
+                        st.success("✅ تم التحديث")
+                        st.rerun()
 
                     if delete_btn:
-                        try:
-                            cursor.execute("DELETE FROM self_assessment_templates WHERE id = %s", (q['id'],))
-                            conn.commit()
-                            st.success("✅ تم الحذف")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
+                        cursor.execute("DELETE FROM self_assessment_templates WHERE id = %s", (q['id'],))
+                        conn.commit()
+                        st.success("✅ تم الحذف")
+                        st.rerun()
     else:
         st.info("لا توجد بنود تقييم لهذا المستوى بعد.")
 
@@ -256,7 +247,6 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
 elif selected_tab == "نقاطي (تقييم من المشرف)":
     st.header("🏅 إعداد بنود تقييم من المشرف")
 
-    # إضافة بند جديد
     st.subheader("➕ إضافة بند جديد")
     with st.form("add_supervisor_criterion"):
         level = st.selectbox("اختر المستوى", [lvl['level_name'] for lvl in levels], key="supervised_level")
@@ -276,7 +266,6 @@ elif selected_tab == "نقاطي (تقييم من المشرف)":
             except Exception as e:
                 st.error(f"❌ حدث خطأ أثناء إضافة البند: {e}")
 
-    # عرض البنود الحالية حسب المستوى
     st.subheader("📋 البنود الحالية حسب المستوى")
     selected_supervised_level = st.selectbox("اختر المستوى", [lvl['level_name'] for lvl in levels], key="supervised_view")
 
@@ -296,7 +285,6 @@ elif selected_tab == "نقاطي (تقييم من المشرف)":
                             update_btn = st.form_submit_button("📝 تحديث")
                             delete_btn = st.form_submit_button("🗑️ حذف")
 
-                        # تنفيذ عملية التحديث
                         if update_btn:
                             try:
                                 cursor.execute(
@@ -309,7 +297,6 @@ elif selected_tab == "نقاطي (تقييم من المشرف)":
                             except Exception as e:
                                 st.error(f"❌ حدث خطأ أثناء التحديث: {e}")
 
-                        # تنفيذ عملية الحذف
                         if delete_btn:
                             try:
                                 cursor.execute("DELETE FROM supervisor_criteria WHERE id = %s", (row['id'],))
