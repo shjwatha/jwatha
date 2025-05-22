@@ -256,6 +256,7 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
 elif selected_tab == "نقاطي (تقييم من المشرف)":
     st.header("🏅 إعداد بنود تقييم من المشرف")
 
+    # إضافة بند جديد
     st.subheader("➕ إضافة بند جديد")
     with st.form("add_supervisor_criterion"):
         level = st.selectbox("اختر المستوى", [lvl['level_name'] for lvl in levels], key="supervised_level")
@@ -275,6 +276,7 @@ elif selected_tab == "نقاطي (تقييم من المشرف)":
             except Exception as e:
                 st.error(f"❌ حدث خطأ أثناء إضافة البند: {e}")
 
+    # عرض البنود الحالية حسب المستوى
     st.subheader("📋 البنود الحالية حسب المستوى")
     selected_supervised_level = st.selectbox("اختر المستوى", [lvl['level_name'] for lvl in levels], key="supervised_view")
 
@@ -294,6 +296,7 @@ elif selected_tab == "نقاطي (تقييم من المشرف)":
                             update_btn = st.form_submit_button("📝 تحديث")
                             delete_btn = st.form_submit_button("🗑️ حذف")
 
+                        # تنفيذ عملية التحديث
                         if update_btn:
                             try:
                                 cursor.execute(
@@ -306,6 +309,7 @@ elif selected_tab == "نقاطي (تقييم من المشرف)":
                             except Exception as e:
                                 st.error(f"❌ حدث خطأ أثناء التحديث: {e}")
 
+                        # تنفيذ عملية الحذف
                         if delete_btn:
                             try:
                                 cursor.execute("DELETE FROM supervisor_criteria WHERE id = %s", (row['id'],))
