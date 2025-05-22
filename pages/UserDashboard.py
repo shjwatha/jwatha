@@ -62,11 +62,10 @@ tabs = st.tabs([
 ])
 
 
-
-# ===================== تبويب 1: إدخال البيانات (نموذج ديناميكي) =====================
+# ===================== تبويب 1: إدخال البيانات (نموذج ديناميكي من قاعدة البيانات) =====================
 with tabs[0]:
     st.markdown(f"<h3 style='color:#0000FF; font-weight:bold;'>👋 أهلاً {username} | مجموعتك: {mentor_name}</h3>", unsafe_allow_html=True)
-    st.markdown("<h4 style='color:#0000FF; font-weight:bold;'>📝 المحاسبة الذاتية اليومية (نموذج تلقائي)</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color:#0000FF; font-weight:bold;'>📝 المحاسبة الذاتية اليومية (نموذج مخصص)</h4>", unsafe_allow_html=True)
 
     with st.form("dynamic_evaluation_form"):
         today = datetime.today().date()
@@ -87,9 +86,9 @@ with tabs[0]:
         selected_date = dict(hijri_dates)[selected_label]
         eval_date_str = selected_date.strftime("%Y-%m-%d")
 
-        # جلب البنود والخيارات الديناميكية من قاعدة البيانات
+        # جلب البنود والأسئلة من قاعدة البيانات
         try:
-            cursor.execute("SELECT id, template_name FROM self_assessment_templates ORDER BY id ASC")
+            cursor.execute("SELECT id, question FROM self_assessment_templates WHERE is_deleted = 0 ORDER BY id ASC")
             templates = cursor.fetchall()
         except Exception as e:
             st.error(f"❌ فشل في تحميل البنود: {e}")
@@ -99,10 +98,10 @@ with tabs[0]:
         if templates:
             for t in templates:
                 t_id = t["id"]
-                t_title = t["template_name"]
+                t_title = t["question"]
                 try:
                     cursor.execute(
-                        "SELECT option_text, score FROM self_assessment_options WHERE template_id = %s ORDER BY id ASC",
+                        "SELECT option_text, score FROM self_assessment_options WHERE question_id = %s AND is_deleted = 0 ORDER BY id ASC",
                         (t_id,)
                     )
                     options = cursor.fetchall()
@@ -116,7 +115,7 @@ with tabs[0]:
                 except Exception as e:
                     st.error(f"❌ خطأ أثناء تحميل خيارات البند '{t_title}': {e}")
         else:
-            st.info("ℹ️ لم يتم إعداد النموذج من قبل المشرف العام بعد.")
+            st.info("ℹ️ لا توجد بنود نشطة حالياً. تأكد أن المشرف العام أعدّ النموذج.")
 
         if st.form_submit_button("💾 حفظ"):
             if responses:
@@ -137,7 +136,6 @@ with tabs[0]:
                     st.error(f"❌ خطأ أثناء حفظ البيانات: {e}")
             else:
                 st.warning("⚠️ لا توجد إجابات لحفظها.")
-
 
 
 
