@@ -90,7 +90,17 @@ if not all_data:
 merged_df = pd.concat(all_data, ignore_index=True)
 
 # ===== التبويبات =====
-tabs = st.tabs(["📊 تقرير إجمالي", "💬 المحادثات", "📋 تجميعي الكل", "📌 تجميعي بند", "👤 تقرير فردي", "📈 رسوم بيانية", "🏆 رصد الإنجاز"])
+tabs = st.tabs([
+    "📊 تقرير إجمالي", 
+    "💬 المحادثات", 
+    "📋 تجميعي الكل", 
+    "📌 تجميعي بند", 
+    "👤 تقرير فردي", 
+    "📈 رسوم بيانية", 
+    "🏆 رصد الإنجاز", 
+    "📍 نقاطي"  # ✅ التبويب الجديد المخصص لتقييم المشرفين
+])
+
 
 # ✅ كل التبويبات ستحتفظ بنفس التنسيقات والوظائف
 # ✅ ستحتاج فقط لربط المحادثات (chat) والإنجازات (notes, achievements_list) بقاعدة Supabase لاحقًا
@@ -442,3 +452,47 @@ with tabs[6]:
                     "الملاحظة": "🏆 الإنجاز"
                 })
                 st.dataframe(filtered[["🕒 التاريخ", " الطالب", "‍🏫 المشرف", "🏆 الإنجاز"]], use_container_width=True)
+
+
+
+
+
+# ===== تبويب 7: تقييم يدوي للمستخدمين (نقاطي) =====
+with tabs[7]:
+    st.subheader("📍 تقييم المستخدمين (يدويًا)")
+
+    # جلب المستخدمين التابعين لهذا المشرف
+    cursor.execute("SELECT username, full_name, level FROM users WHERE mentor = %s", (username,))
+    users = cursor.fetchall()
+
+    if not users:
+        st.info("ℹ️ لا يوجد مستخدمون مرتبطون بك.")
+    else:
+        selected_user_label = st.selectbox("👤 اختر المستخدم", [f"{u['full_name']} ({u['username']})" for u in users])
+        selected_user = selected_user_label.split('(')[-1].replace(')', '').strip()
+        selected_level = next((u['level'] for u in users if u['username'] == selected_user), None)
+
+        # جلب البنود المرتبطة بالمستوى
+        cursor.execute("SELECT id, question, max_score FROM supervisor_criteria WHERE level = %s", (selected_level,))
+        criteria = cursor.fetchall()
+
+        if not criteria:
+            st.warning("⚠️ لا توجد بنود تقييم لهذا المستوى.")
+        else:
+            with st.form("supervisor_eval_form"):
+                st.markdown(f"📝 البنود الخاصة بالمستوى: **{selected_level}**")
+                scores = {}
+                for c in criteria:
+                    score = st.number_input(f"{c['question']} (من {c['max_score']} نقطة)", min_value=0, max_value=c['max_score'], key=c['id'])
+                    scores[c['question']] = score
+
+                submitted = st.form_submit_button("💾 حفظ التقييم")
+
+                if submitted:
+                    for field, value in scores.items():
+                        cursor.execute("""
+                            INSERT INTO supervisor_evaluations (username, supervisor, field_name, score)
+                            VALUES (%s, %s, %s, %s)
+                        """, (selected_user, username, field, value))
+                    conn.commit()
+                    st.success("✅ تم حفظ التقييمات بنجاح.")
