@@ -299,3 +299,69 @@ elif selected_tab == "نقاطي (تقييم من المشرف)":
                         st.rerun()
     else:
         st.info("لا توجد بنود تقييم لهذا المستوى بعد.")
+# ========== التبويب الرابع: نقل المستويات ==========
+elif selected_tab == "نقل المستويات":
+    st.header("🔄 إدارة وربط المستويات")
+
+    action = st.selectbox("اختر العملية", ["نقل سوبر مشرف إلى مستوى", "نقل مشرف إلى سوبر مشرف", "نقل مستخدم إلى مشرف"])
+
+    if action == "نقل سوبر مشرف إلى مستوى":
+        cursor.execute("SELECT username, full_name FROM admins WHERE role = 'sp'")
+        sps = cursor.fetchall()
+        if not sps:
+            st.warning("لا يوجد سوبر مشرفين.")
+        else:
+            selected_sp = st.selectbox("اختر السوبر مشرف", [f"{s['full_name']} ({s['username']})" for s in sps])
+            sp_username = selected_sp.split("(")[-1].replace(")", "").strip()
+            level = st.selectbox("اختر المستوى الجديد", [lvl['level_name'] for lvl in levels])
+            if st.button("🔁 نقل"):
+                cursor.execute("UPDATE admins SET level = %s WHERE username = %s", (level, sp_username))
+                cursor.execute("UPDATE admins SET level = %s WHERE mentor = %s", (level, sp_username))
+                cursor.execute("UPDATE users SET level = %s WHERE mentor IN (SELECT username FROM admins WHERE mentor = %s)", (level, sp_username))
+                conn.commit()
+                st.success("✅ تم نقل السوبر مشرف والمشرفين والمستخدمين")
+
+    elif action == "نقل مشرف إلى سوبر مشرف":
+        cursor.execute("SELECT username, full_name FROM admins WHERE role = 'supervisor'")
+        supervisors = cursor.fetchall()
+        cursor.execute("SELECT username, full_name, level FROM admins WHERE role = 'sp'")
+        sps = cursor.fetchall()
+
+        if not supervisors or not sps:
+            st.warning("تأكد من وجود مشرفين وسوبر مشرفين.")
+        else:
+            selected_sup = st.selectbox("اختر المشرف", [f"{s['full_name']} ({s['username']})" for s in supervisors])
+            sup_username = selected_sup.split("(")[-1].replace(")", "").strip()
+            selected_sp = st.selectbox("اختر السوبر مشرف الجديد", [f"{s['full_name']} ({s['username']})" for s in sps])
+            sp_username = selected_sp.split("(")[-1].replace(")", "").strip()
+            sp_level = next((s['level'] for s in sps if s['username'] == sp_username), None)
+
+            if st.button("🔁 نقل المشرف"):
+                cursor.execute("UPDATE admins SET mentor = %s, level = %s WHERE username = %s", (sp_username, sp_level, sup_username))
+                cursor.execute("UPDATE users SET level = %s WHERE mentor = %s", (sp_level, sup_username))
+                conn.commit()
+                st.success("✅ تم نقل المشرف والمستخدمين التابعين له")
+
+    elif action == "نقل مستخدم إلى مشرف":
+        cursor.execute("SELECT username, full_name FROM users")
+        users = cursor.fetchall()
+        cursor.execute("SELECT username, full_name, level FROM admins WHERE role = 'supervisor'")
+        supervisors = cursor.fetchall()
+
+        if not users or not supervisors:
+            st.warning("تأكد من وجود مستخدمين ومشرفين.")
+        else:
+            selected_user = st.selectbox("اختر المستخدم", [f"{u['full_name']} ({u['username']})" for u in users])
+            user_username = selected_user.split("(")[-1].replace(")", "").strip()
+            selected_sup = st.selectbox("اختر المشرف الجديد", [f"{s['full_name']} ({s['username']})" for s in supervisors])
+            sup_username = selected_sup.split("(")[-1].replace(")", "").strip()
+            sup_level = next((s['level'] for s in supervisors if s['username'] == sup_username), None)
+
+            if st.button("🔁 نقل المستخدم"):
+                cursor.execute("UPDATE users SET mentor = %s, level = %s WHERE username = %s", (sup_username, sup_level, user_username))
+                conn.commit()
+                st.success("✅ تم نقل المستخدم")
+
+# ========== إغلاق الاتصال ==========
+cursor.close()
+conn.close()
