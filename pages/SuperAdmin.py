@@ -173,47 +173,33 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
             st.success("✅ تم إضافة البند")
             st.rerun()
 
-
-
     st.subheader("🧩 البنود الحالية حسب المستوى")
     selected_template_level = st.selectbox("اختر المستوى لعرض البنود", [lvl['level_name'] for lvl in levels], key="template_view_level")
-    
-    try:
-        query = "SELECT * FROM self_assessment_templates WHERE level = %s"
-        cursor.execute(query, (selected_template_level,))
-        questions = cursor.fetchall()
-    except Exception as e:
-        st.error(f"❌ حدث خطأ أثناء جلب البنود الخاصة بالمستوى: {e}")
-        questions = []
-    
+
+    cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (selected_template_level,))
+    questions = cursor.fetchall()
+
     if questions:
-        question_map = {f"{q['question']} ({q['input_type']})": q for q in questions}
-        selected_question_label = st.selectbox("اختر البند لعرض أو إضافة الخيارات", list(question_map.keys()), key="selected_question")
-        selected_question = question_map[selected_question_label]
-    
-        st.markdown("#### 🧾 الخيارات الحالية:")
-        cursor.execute("SELECT * FROM self_assessment_options WHERE question_id = %s", (selected_question["id"],))
-        options = cursor.fetchall()
-        for opt in options:
-            st.markdown(f"🔘 {opt['option_text']} - {opt['score']} نقطة")
-    
-        with st.form(f"add_option_{selected_question['id']}"):
-            option_text = st.text_input("النص", key=f"opt_text_{selected_question['id']}")
-            score = st.number_input("الدرجة", 0, 100, step=1, key=f"opt_score_{selected_question['id']}")
-            submitted_opt = st.form_submit_button("➕ أضف خيار")
-    
-            if submitted_opt and option_text:
-                cursor.execute(
-                    "INSERT INTO self_assessment_options (question_id, option_text, score) VALUES (%s, %s, %s)",
-                    (selected_question["id"], option_text, score)
-                )
-                conn.commit()
-                st.success("✅ تم إضافة الخيار")
-                st.rerun()
-    
+        for q in questions:
+            with st.expander(f"{q['question']} ({q['input_type']})"):
+                cursor.execute("SELECT * FROM self_assessment_options WHERE question_id = %s", (q["id"],))
+                options = cursor.fetchall()
+                for opt in options:
+                    st.markdown(f"🔘 {opt['option_text']} - {opt['score']} نقطة")
 
+                with st.form(f"add_option_{q['id']}"):
+                    option_text = st.text_input("النص", key=f"opt_text_{q['id']}")
+                    score = st.number_input("الدرجة", 0, 100, step=1, key=f"opt_score_{q['id']}")
+                    submitted_opt = st.form_submit_button("➕ أضف خيار")
 
-
+                    if submitted_opt and option_text:
+                        cursor.execute(
+                            "INSERT INTO self_assessment_options (question_id, option_text, score) VALUES (%s, %s, %s)",
+                            (q["id"], option_text, score)
+                        )
+                        conn.commit()
+                        st.success("✅ تم إضافة الخيار")
+                        st.rerun()
 
 # ========== التبويب الثالث: نقاطي ==========
 elif selected_tab == "نقاطي (تقييم من المشرف)":
