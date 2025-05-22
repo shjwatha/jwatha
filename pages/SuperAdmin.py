@@ -54,7 +54,7 @@ if selected_tab == "إدارة الأعضاء":
         admins = cursor.fetchall()
         cursor.execute("SELECT * FROM users WHERE level = %s", (selected_level,))
         users = cursor.fetchall()
-        st.subheader("🔍 جميع الأعضاء المرتبطين بالمستوى")
+        
         st.dataframe(pd.DataFrame(admins + users))
 
     elif choice in ["الآدمن", "السوبر مشرف", "المشرف"]:
