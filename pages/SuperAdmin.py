@@ -226,16 +226,17 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
             with st.expander(f"{q['question']} ({q['input_type']})"):
                 col1, col2 = st.columns([1, 1])
                 with col1:
-                    if st.button(f"📝 تعديل البند {q['id']}", key=f"edit_q_{q['id']}"):
-                        new_question = st.text_input("عنوان البند", value=q['question'], key=f"edit_q_{q['id']}")
-                        new_input_type = st.selectbox("نوع الإجابة", ["اختيار واحد", "اختيار متعدد"], index=["اختيار واحد", "اختيار متعدد"].index(q['input_type']))
-                        if st.button(f"تحديث"):
+                    if st.button(f"📝 تعديل البند {q['id']}", key=f"edit_q_button_{q['id']}"):
+                        # استخدام مفتاح فريد لمدخلات النص
+                        new_question = st.text_input(f"عنوان البند {q['id']}", value=q['question'], key=f"edit_q_text_input_{q['id']}")
+                        new_input_type = st.selectbox("نوع الإجابة", ["اختيار واحد", "اختيار متعدد"], index=["اختيار واحد", "اختيار متعدد"].index(q['input_type']), key=f"edit_q_input_type_{q['id']}")
+                        if st.button(f"تحديث البند {q['id']}", key=f"update_q_button_{q['id']}"):
                             cursor.execute("UPDATE self_assessment_templates SET question = %s, input_type = %s WHERE id = %s", (new_question, new_input_type, q["id"]))
                             conn.commit()
                             st.success("✅ تم التحديث")
                             st.rerun()
                 with col2:
-                    if st.button(f"🗑️ حذف البند {q['id']}", key=f"delete_q_{q['id']}"):
+                    if st.button(f"🗑️ حذف البند {q['id']}", key=f"delete_q_button_{q['id']}"):
                         cursor.execute("UPDATE self_assessment_templates SET is_deleted = TRUE WHERE id = %s", (q["id"],))
                         conn.commit()
                         st.success("✅ تم حذف البند")
@@ -248,16 +249,16 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                     with col3:
                         st.markdown(f"🔘 {opt['option_text']} - {opt['score']} نقطة")
                     with col4:
-                        if st.button("🗑️ حذف", key=f"delete_opt_{opt['id']}"):
+                        if st.button("🗑️ حذف الخيار", key=f"delete_opt_button_{opt['id']}"):
                             cursor.execute("DELETE FROM self_assessment_options WHERE id = %s", (opt["id"],))
                             conn.commit()
                             st.success("✅ تم حذف الخيار")
                             st.rerun()
 
                 with st.form(f"add_option_{q['id']}"):
-                    option_text = st.text_input("النص", key=f"opt_text_{q['id']}")
+                    option_text = st.text_input(f"النص الخاص بالخيار {q['id']}", key=f"opt_text_{q['id']}")
                     score = st.number_input("الدرجة", 0, 100, step=1, key=f"opt_score_{q['id']}")
-                    submitted_opt = st.form_submit_button("➕ أضف خيار")
+                    submitted_opt = st.form_submit_button(f"➕ أضف خيار {q['id']}")
 
                     if submitted_opt and option_text:
                         cursor.execute(
