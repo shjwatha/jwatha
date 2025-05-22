@@ -190,13 +190,16 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
         submitted_q = st.form_submit_button("➕ أضف البند")
 
         if submitted_q and question:
-            cursor.execute(
-                "INSERT INTO self_assessment_templates (question, input_type, level) VALUES (%s, %s, %s)",
-                (question, input_type, level)
-            )
-            conn.commit()
-            st.success("✅ تم إضافة البند")
-            st.rerun()
+            try:
+                cursor.execute(
+                    "INSERT INTO self_assessment_templates (question, input_type, level) VALUES (%s, %s, %s)",
+                    (question, input_type, level)
+                )
+                conn.commit()
+                st.success("✅ تم إضافة البند")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ حدث خطأ أثناء إضافة البند: {e}")
 
     st.subheader("🧩 البنود الحالية حسب المستوى")
     selected_template_level = st.selectbox("اختر المستوى لعرض البنود", [lvl['level_name'] for lvl in levels], key="template_view_level")
@@ -227,19 +230,25 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                         delete_btn = st.form_submit_button("🗑️ حذف")
 
                     if update_btn:
-                        cursor.execute(
-                            "UPDATE self_assessment_templates SET question = %s, score = %s WHERE id = %s",
-                            (new_question, new_score, q['id'])
-                        )
-                        conn.commit()
-                        st.success("✅ تم التحديث")
-                        st.rerun()
+                        try:
+                            cursor.execute(
+                                "UPDATE self_assessment_templates SET question = %s, score = %s WHERE id = %s",
+                                (new_question, new_score, q['id'])
+                            )
+                            conn.commit()
+                            st.success("✅ تم التحديث")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ حدث خطأ أثناء التحديث: {e}")
 
                     if delete_btn:
-                        cursor.execute("DELETE FROM self_assessment_templates WHERE id = %s", (q['id'],))
-                        conn.commit()
-                        st.success("✅ تم الحذف")
-                        st.rerun()
+                        try:
+                            cursor.execute("DELETE FROM self_assessment_templates WHERE id = %s", (q['id'],))
+                            conn.commit()
+                            st.success("✅ تم الحذف")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
     else:
         st.info("لا توجد بنود تقييم لهذا المستوى بعد.")
 
