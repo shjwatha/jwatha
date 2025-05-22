@@ -257,48 +257,62 @@ elif selected_tab == "نقاطي (تقييم من المشرف)":
         submitted = st.form_submit_button("➕ أضف البند")
 
         if submitted and question:
-            cursor.execute(
-                "INSERT INTO supervisor_criteria (question, max_score, level) VALUES (%s, %s, %s)",
-                (question, max_score, level)
-            )
-            conn.commit()
-            st.success("✅ تم حفظ البند")
-            st.rerun()
+            try:
+                cursor.execute(
+                    "INSERT INTO supervisor_criteria (question, max_score, level) VALUES (%s, %s, %s)",
+                    (question, max_score, level)
+                )
+                conn.commit()
+                st.success("✅ تم حفظ البند")
+                st.rerun()  # إعادة تحميل الصفحة بعد التحديث
+            except Exception as e:
+                st.error(f"❌ حدث خطأ أثناء إضافة البند: {e}")
 
     st.subheader("📋 البنود الحالية حسب المستوى")
     selected_supervised_level = st.selectbox("اختر المستوى", [lvl['level_name'] for lvl in levels], key="supervised_view")
 
-    cursor.execute("SELECT * FROM supervisor_criteria WHERE level = %s", (selected_supervised_level,))
-    results = cursor.fetchall()
+    try:
+        cursor.execute("SELECT * FROM supervisor_criteria WHERE level = %s", (selected_supervised_level,))
+        results = cursor.fetchall()
 
-    if results:
-        for row in results:
-            with st.expander(f"{row['question']} (درجة كاملة: {row['max_score']})"):
-                with st.form(f"edit_delete_form_{row['id']}"):
-                    col1, col2 = st.columns([1, 1])
-                    with col1:
-                        new_question = st.text_input("عنوان البند", value=row['question'], key=f"edit_q_{row['id']}")
-                        new_score = st.number_input("الدرجة الكاملة", min_value=1, max_value=100, value=row['max_score'], key=f"edit_s_{row['id']}")
-                    with col2:
-                        update_btn = st.form_submit_button("📝 تحديث")
-                        delete_btn = st.form_submit_button("🗑️ حذف")
+        if results:
+            for row in results:
+                with st.expander(f"{row['question']} (درجة كاملة: {row['max_score']})"):
+                    with st.form(f"edit_delete_form_{row['id']}"):
+                        col1, col2 = st.columns([1, 1])
+                        with col1:
+                            new_question = st.text_input("عنوان البند", value=row['question'], key=f"edit_q_{row['id']}")
+                            new_score = st.number_input("الدرجة الكاملة", min_value=1, max_value=100, value=row['max_score'], key=f"edit_s_{row['id']}")
+                        with col2:
+                            update_btn = st.form_submit_button("📝 تحديث")
+                            delete_btn = st.form_submit_button("🗑️ حذف")
 
-                    if update_btn:
-                        cursor.execute(
-                            "UPDATE supervisor_criteria SET question = %s, max_score = %s WHERE id = %s",
-                            (new_question, new_score, row['id'])
-                        )
-                        conn.commit()
-                        st.success("✅ تم التحديث")
-                        st.rerun()
+                        if update_btn:
+                            try:
+                                cursor.execute(
+                                    "UPDATE supervisor_criteria SET question = %s, max_score = %s WHERE id = %s",
+                                    (new_question, new_score, row['id'])
+                                )
+                                conn.commit()
+                                st.success("✅ تم التحديث")
+                                st.rerun()  # إعادة تحميل الصفحة بعد التحديث
+                            except Exception as e:
+                                st.error(f"❌ حدث خطأ أثناء التحديث: {e}")
 
-                    if delete_btn:
-                        cursor.execute("DELETE FROM supervisor_criteria WHERE id = %s", (row['id'],))
-                        conn.commit()
-                        st.success("✅ تم الحذف")
-                        st.rerun()
-    else:
-        st.info("لا توجد بنود تقييم لهذا المستوى بعد.")
+                        if delete_btn:
+                            try:
+                                cursor.execute("DELETE FROM supervisor_criteria WHERE id = %s", (row['id'],))
+                                conn.commit()
+                                st.success("✅ تم الحذف")
+                                st.rerun()  # إعادة تحميل الصفحة بعد الحذف
+                            except Exception as e:
+                                st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
+
+        else:
+            st.info("لا توجد بنود تقييم لهذا المستوى بعد.")
+    except Exception as e:
+        st.error(f"❌ حدث خطأ أثناء جلب البنود الخاصة بالمستوى: {e}")
+
 # ========== التبويب الرابع: نقل المستويات ==========
 elif selected_tab == "نقل المستويات":
     st.header("🔄 إدارة وربط المستويات")
