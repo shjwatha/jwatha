@@ -173,10 +173,11 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
             st.success("✅ تم إضافة البند")
             st.rerun()
 
-st.subheader("🧩 البنود الحالية حسب المستوى")
+
+
+    st.subheader("🧩 البنود الحالية حسب المستوى")
     selected_template_level = st.selectbox("اختر المستوى لعرض البنود", [lvl['level_name'] for lvl in levels], key="template_view_level")
     
-    # جلب البنود المرتبطة بالمستوى المحدد
     try:
         query = "SELECT * FROM self_assessment_templates WHERE level = %s"
         cursor.execute(query, (selected_template_level,))
@@ -185,20 +186,17 @@ st.subheader("🧩 البنود الحالية حسب المستوى")
         st.error(f"❌ حدث خطأ أثناء جلب البنود الخاصة بالمستوى: {e}")
         questions = []
     
-    # ✅ القائمة المنسدلة الجديدة لاختيار البند
     if questions:
         question_map = {f"{q['question']} ({q['input_type']})": q for q in questions}
         selected_question_label = st.selectbox("اختر البند لعرض أو إضافة الخيارات", list(question_map.keys()), key="selected_question")
         selected_question = question_map[selected_question_label]
     
-        # عرض الخيارات الحالية
         st.markdown("#### 🧾 الخيارات الحالية:")
         cursor.execute("SELECT * FROM self_assessment_options WHERE question_id = %s", (selected_question["id"],))
         options = cursor.fetchall()
         for opt in options:
             st.markdown(f"🔘 {opt['option_text']} - {opt['score']} نقطة")
     
-        # نموذج إضافة خيار جديد
         with st.form(f"add_option_{selected_question['id']}"):
             option_text = st.text_input("النص", key=f"opt_text_{selected_question['id']}")
             score = st.number_input("الدرجة", 0, 100, step=1, key=f"opt_score_{selected_question['id']}")
@@ -213,6 +211,9 @@ st.subheader("🧩 البنود الحالية حسب المستوى")
                 st.success("✅ تم إضافة الخيار")
                 st.rerun()
     
+
+
+
 
 # ========== التبويب الثالث: نقاطي ==========
 elif selected_tab == "نقاطي (تقييم من المشرف)":
