@@ -62,6 +62,85 @@ tabs = st.tabs([
 ])
 
 
+
+# ===================== تبويب 1: إدخال البيانات (نموذج ديناميكي) =====================
+with tabs[0]:
+    st.markdown(f"<h3 style='color:#0000FF; font-weight:bold;'>👋 أهلاً {username} | مجموعتك: {mentor_name}</h3>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color:#0000FF; font-weight:bold;'>📝 المحاسبة الذاتية اليومية</h4>", unsafe_allow_html=True)
+
+    with st.form("dynamic_evaluation_form"):
+        today = datetime.today().date()
+        hijri_dates = []
+        for i in range(7):
+            g_date = today - timedelta(days=i)
+            h_date = Gregorian(g_date.year, g_date.month, g_date.day).to_hijri()
+            weekday = g_date.strftime("%A")
+            arabic_weekday = {
+                "Saturday": "السبت", "Sunday": "الأحد", "Monday": "الاثنين",
+                "Tuesday": "الثلاثاء", "Wednesday": "الأربعاء",
+                "Thursday": "الخميس", "Friday": "الجمعة"
+            }[weekday]
+            label = f"{arabic_weekday} - {g_date.day}/{g_date.month}/{g_date.year}"
+            hijri_dates.append((label, g_date))
+        hijri_labels = [label for label, _ in hijri_dates]
+        selected_label = st.selectbox("📅 اختر التاريخ", hijri_labels)
+        selected_date = dict(hijri_dates)[selected_label]
+        eval_date_str = selected_date.strftime("%Y-%m-%d")
+
+        # جلب البنود من قاعدة البيانات
+        try:
+            cursor.execute("SELECT template_name FROM self_assessment_templates ORDER BY id ASC")
+            templates = [row["template_name"] for row in cursor.fetchall()]
+        except Exception as e:
+            st.error(f"❌ فشل في تحميل البنود: {e}")
+            templates = []
+
+        responses = []
+        if templates:
+            for t_name in templates:
+                try:
+                    cursor.execute(
+                        "SELECT option_text, score FROM self_assessment_options WHERE template_name = %s ORDER BY id ASC",
+                        (t_name,)
+                    )
+                    options = cursor.fetchall()
+                    if options:
+                        option_labels = [f"{o['option_text']} ({o['score']} نقاط)" for o in options]
+                        option_map = dict(zip(option_labels, [o['score'] for o in options]))
+                        selected = st.radio(t_name, option_labels, key=t_name)
+                        responses.append((eval_date_str, username, mentor_name, t_name, option_map[selected]))
+                    else:
+                        st.warning(f"⚠️ لا توجد خيارات للبند: {t_name}")
+                except Exception as e:
+                    st.error(f"❌ خطأ أثناء تحميل خيارات البند '{t_name}': {e}")
+        else:
+            st.info("ℹ️ لم يتم إعداد النموذج من قبل المشرف العام بعد.")
+
+        if st.form_submit_button("💾 حفظ"):
+            if responses:
+                try:
+                    cursor.execute(
+                        "DELETE FROM daily_evaluations WHERE student = %s AND DATE(timestamp) = %s",
+                        (username, eval_date_str)
+                    )
+                    for row in responses:
+                        cursor.execute(
+                            "INSERT INTO daily_evaluations (timestamp, student, supervisor, question, score) VALUES (%s, %s, %s, %s, %s)",
+                            (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), *row)
+                        )
+                    conn.commit()
+                    st.success("✅ تم حفظ التقييم بنجاح.")
+                    st.experimental_rerun()
+                except Exception as e:
+                    st.error(f"❌ خطأ أثناء حفظ البيانات: {e}")
+            else:
+                st.warning("⚠️ لا توجد إجابات لحفظها.")
+
+
+
+
+
+
 # ===================== تبويب 2: المحادثات =====================
 with tabs[1]:
     st.subheader("💬 المحادثة مع المشرف")
