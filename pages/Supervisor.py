@@ -1,49 +1,24 @@
+# ✅ الجزء 1: الاستيرادات والتهيئة والاتصال بقاعدة البيانات
 import streamlit as st
-import gspread
 import pandas as pd
-import json
-from google.oauth2.service_account import Credentials
-from datetime import datetime
+from datetime import datetime, timedelta
 import plotly.graph_objects as go
+import pymysql
 
-# ===== التحقق من تسجيل الدخول =====
-if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
-    st.warning("🔐 يجب تسجيل الدخول أولاً")
-    st.switch_page("home.py")
-
-permissions = st.session_state.get("permissions")
-if permissions not in ["supervisor", "sp"]:
-    if permissions == "admin":
-        st.switch_page("pages/AdminDashboard.py")
-    elif permissions == "user":
-        st.switch_page("pages/UserDashboard.py")
-    else:
-        st.switch_page("home.py")
-
-# ===== الاتصال بـ Google Sheets =====
-SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds_dict = json.loads(st.secrets["GOOGLE_SHEETS_CREDENTIALS"])
-creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPE)
-client = gspread.authorize(creds)
-
+# ===== الاتصال بقاعدة بيانات MySQL =====
 try:
-    spreadsheet = client.open_by_key(st.session_state["sheet_id"])
-except Exception:
-    st.error("❌ حدث خطأ أثناء الاتصال بقاعدة البيانات. حاول مرة أخرى.")
-    st.markdown("""<script>
-        setTimeout(function() {
-            window.location.href = "/home";
-        }, 1000);
-    </script>""", unsafe_allow_html=True)
+    conn = pymysql.connect(
+        host=st.secrets["DB_HOST"],
+        port=int(st.secrets["DB_PORT"]),
+        user=st.secrets["DB_USER"],
+        password=st.secrets["DB_PASSWORD"],
+        database=st.secrets["DB_NAME"],
+        charset='utf8mb4'
+    )
+    cursor = conn.cursor(pymysql.cursors.DictCursor)
+except Exception as e:
+    st.error(f"❌ فشل الاتصال بقاعدة البيانات: {e}")
     st.stop()
-
-
-admin_sheet = spreadsheet.worksheet("admin")
-users_df = pd.DataFrame(admin_sheet.get_all_records())
-chat_sheet = spreadsheet.worksheet("chat")
-
-username = st.session_state.get("username")
-
 # ===== إعداد الصفحة =====
 st.set_page_config(page_title="📊 تقارير المشرف", page_icon="📊", layout="wide")
 
