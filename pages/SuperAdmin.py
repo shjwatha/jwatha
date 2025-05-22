@@ -227,9 +227,16 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                 col1, col2 = st.columns([1, 1])
                 with col1:
                     if st.button(f"📝 تعديل البند {q['id']}", key=f"edit_q_button_{q['id']}"):
-                        # استخدام مفتاح فريد لمدخلات النص
+                        # التحقق أولاً من أن قيمة input_type موجودة في القائمة
+                        input_type_options = ["اختيار واحد", "اختيار متعدد"]
+                        if q['input_type'] in input_type_options:
+                            new_input_type_index = input_type_options.index(q['input_type'])
+                        else:
+                            new_input_type_index = 0  # تعيين القيمة الافتراضية إذا لم تكن موجودة
+                        
                         new_question = st.text_input(f"عنوان البند {q['id']}", value=q['question'], key=f"edit_q_text_input_{q['id']}")
-                        new_input_type = st.selectbox("نوع الإجابة", ["اختيار واحد", "اختيار متعدد"], index=["اختيار واحد", "اختيار متعدد"].index(q['input_type']), key=f"edit_q_input_type_{q['id']}")
+                        new_input_type = st.selectbox("نوع الإجابة", input_type_options, index=new_input_type_index, key=f"edit_q_input_type_{q['id']}")
+                        
                         if st.button(f"تحديث البند {q['id']}", key=f"update_q_button_{q['id']}"):
                             cursor.execute("UPDATE self_assessment_templates SET question = %s, input_type = %s WHERE id = %s", (new_question, new_input_type, q["id"]))
                             conn.commit()
