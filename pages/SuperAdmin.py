@@ -353,13 +353,12 @@ elif selected_tab == "نقاطي (تقييم من المشرف)":
 
         if submitted and question:
             try:
-                cursor.execute(
-                    "INSERT INTO supervisor_criteria (question, max_score, level) VALUES (%s, %s, %s)",
-                    (question, max_score, level)
-                )
+                insert_query = "INSERT INTO supervisor_criteria (question, max_score, level) VALUES (%s, %s, %s)"
+                print(f"الاستعلام: {insert_query} | القيم: {(question, max_score, level)}")
+                cursor.execute(insert_query, (question, max_score, level))
                 conn.commit()
                 st.success("✅ تم حفظ البند")
-                st.rerun()  # إعادة تحميل الصفحة بعد التحديث
+                st.experimental_rerun()  # إعادة تحميل الصفحة بعد التحديث
             except Exception as e:
                 st.error(f"❌ حدث خطأ أثناء إضافة البند: {e}")
 
@@ -373,36 +372,36 @@ elif selected_tab == "نقاطي (تقييم من المشرف)":
         if results:
             for row in results:
                 with st.expander(f"{row['question']} (درجة كاملة: {row['max_score']})"):
-                    with st.form(f"edit_delete_form_{row['id']}"):
-                        col1, col2 = st.columns([1, 1])
-                        with col1:
+                    col1, col2 = st.columns([1, 1])
+                    
+                    # نموذج خاص بتحديث البند
+                    with col1:
+                        with st.form(key=f"edit_form_{row['id']}"):
                             new_question = st.text_input("عنوان البند", value=row['question'], key=f"edit_q_{row['id']}")
                             new_score = st.number_input("الدرجة الكاملة", min_value=1, max_value=100, value=row['max_score'], key=f"edit_s_{row['id']}")
-                        with col2:
-                            update_btn = st.form_submit_button("📝 تحديث")
-                            delete_btn = st.form_submit_button("🗑️ حذف")
-
-                        if update_btn:
+                            if st.form_submit_button("📝 تحديث"):
+                                try:
+                                    update_query = "UPDATE supervisor_criteria SET question = %s, max_score = %s WHERE id = %s"
+                                    print(f"الاستعلام: {update_query} | القيم: {(new_question, new_score, row['id'])}")
+                                    cursor.execute(update_query, (new_question, new_score, row['id']))
+                                    conn.commit()
+                                    st.success("✅ تم التحديث")
+                                    st.experimental_rerun()  # إعادة تحميل الصفحة بعد التحديث
+                                except Exception as e:
+                                    st.error(f"❌ حدث خطأ أثناء التحديث: {e}")
+                    
+                    # زر حذف منفصل خارج النموذج للحفاظ على بساطته
+                    with col2:
+                        if st.button("🗑️ حذف", key=f"delete_btn_{row['id']}"):
                             try:
-                                cursor.execute(
-                                    "UPDATE supervisor_criteria SET question = %s, max_score = %s WHERE id = %s",
-                                    (new_question, new_score, row['id'])
-                                )
-                                conn.commit()
-                                st.success("✅ تم التحديث")
-                                st.rerun()  # إعادة تحميل الصفحة بعد التحديث
-                            except Exception as e:
-                                st.error(f"❌ حدث خطأ أثناء التحديث: {e}")
-
-                        if delete_btn:
-                            try:
-                                cursor.execute("DELETE FROM supervisor_criteria WHERE id = %s", (row['id'],))
+                                delete_query = "DELETE FROM supervisor_criteria WHERE id = %s"
+                                print(f"الاستعلام: {delete_query} | القيم: {(row['id'],)}")
+                                cursor.execute(delete_query, (row['id'],))
                                 conn.commit()
                                 st.success("✅ تم الحذف")
-                                st.rerun()  # إعادة تحميل الصفحة بعد الحذف
+                                st.experimental_rerun()  # إعادة تحميل الصفحة بعد الحذف
                             except Exception as e:
                                 st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
-
         else:
             st.info("لا توجد بنود تقييم لهذا المستوى بعد.")
     except Exception as e:
