@@ -64,7 +64,6 @@ tabs = st.tabs([
 
 
 # ===================== تبويب 1: إدخال البيانات (نموذج ديناميكي) =====================
-# ===================== تبويب 1: إدخال البيانات (نموذج ديناميكي) =====================
 with tabs[0]:
     st.markdown(f"<h3 style='color:#0000FF; font-weight:bold;'>👋 أهلاً {username} | مجموعتك: {mentor_name}</h3>", unsafe_allow_html=True)
     st.markdown("<h4 style='color:#0000FF; font-weight:bold;'>📝 المحاسبة الذاتية اليومية (نموذج تلقائي)</h4>", unsafe_allow_html=True)
@@ -90,7 +89,7 @@ with tabs[0]:
 
         # جلب البنود والخيارات الديناميكية من قاعدة البيانات
         try:
-            cursor.execute("SELECT id, title FROM self_assessment_templates ORDER BY id ASC")
+            cursor.execute("SELECT id, template_name FROM self_assessment_templates ORDER BY id ASC")
             templates = cursor.fetchall()
         except Exception as e:
             st.error(f"❌ فشل في تحميل البنود: {e}")
@@ -100,7 +99,7 @@ with tabs[0]:
         if templates:
             for t in templates:
                 t_id = t["id"]
-                t_title = t["title"]
+                t_title = t["template_name"]
                 try:
                     cursor.execute(
                         "SELECT option_text, score FROM self_assessment_options WHERE template_id = %s ORDER BY id ASC",
@@ -138,7 +137,6 @@ with tabs[0]:
                     st.error(f"❌ خطأ أثناء حفظ البيانات: {e}")
             else:
                 st.warning("⚠️ لا توجد إجابات لحفظها.")
-
 
 
 
