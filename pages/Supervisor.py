@@ -1,24 +1,10 @@
-# ✅ الجزء 1: الاستيرادات والتهيئة والاتصال بقاعدة البيانات
 import streamlit as st
+import gspread
 import pandas as pd
-from datetime import datetime, timedelta
+import json
+from google.oauth2.service_account import Credentials
+from datetime import datetime
 import plotly.graph_objects as go
-import pymysql
-
-# ===== الاتصال بقاعدة بيانات MySQL =====
-try:
-    conn = pymysql.connect(
-        host=st.secrets["DB_HOST"],
-        port=int(st.secrets["DB_PORT"]),
-        user=st.secrets["DB_USER"],
-        password=st.secrets["DB_PASSWORD"],
-        database=st.secrets["DB_NAME"],
-        charset='utf8mb4'
-    )
-    cursor = conn.cursor(pymysql.cursors.DictCursor)
-except Exception as e:
-    st.error(f"❌ فشل الاتصال بقاعدة البيانات: {e}")
-    st.stop()
 
 # ===== التحقق من تسجيل الدخول =====
 if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
@@ -34,54 +20,87 @@ if permissions not in ["supervisor", "sp"]:
     else:
         st.switch_page("home.py")
 
+# ===== الاتصال بـ Google Sheets =====
+SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+creds_dict = json.loads(st.secrets["GOOGLE_SHEETS_CREDENTIALS"])
+creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPE)
+client = gspread.authorize(creds)
+
+try:
+    spreadsheet = client.open_by_key(st.session_state["sheet_id"])
+except Exception:
+    st.error("❌ حدث خطأ أثناء الاتصال بقاعدة البيانات. حاول مرة أخرى.")
+    st.markdown("""<script>
+        setTimeout(function() {
+            window.location.href = "/home";
+        }, 1000);
+    </script>""", unsafe_allow_html=True)
+    st.stop()
+
+
+admin_sheet = spreadsheet.worksheet("admin")
+users_df = pd.DataFrame(admin_sheet.get_all_records())
+chat_sheet = spreadsheet.worksheet("chat")
+
 username = st.session_state.get("username")
-user_level = st.session_state.get("level")
 
 # ===== إعداد الصفحة =====
 st.set_page_config(page_title="📊 تقارير المشرف", page_icon="📊", layout="wide")
-st.markdown("""
-<style>
-body, .stTextInput, .stTextArea, .stSelectbox, .stButton, .stMarkdown, .stDataFrame {
-    direction: rtl;
-    text-align: right;
-}
-</style>
-""", unsafe_allow_html=True)
+
+# ===== ضبط اتجاه النص إلى اليمين =====
+st.markdown(
+    """
+    <style>
+    body, .stTextInput, .stTextArea, .stSelectbox, .stButton, .stMarkdown, .stDataFrame {
+        direction: rtl;
+        text-align: right;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 st.title(f"👋 أهلاً {username}")
 
-# ✅ الجزء 2: تحميل بيانات المستخدمين والمشرفين
-cursor.execute("SELECT * FROM users WHERE level = %s", (user_level,))
-all_users = cursor.fetchall()
-cursor.execute("SELECT * FROM admins WHERE level = %s", (user_level,))
-all_admins = cursor.fetchall()
+# ===== تحديد المستخدمين المتاحين للمحادثة =====
+all_user_options = []
 
-users_df = pd.DataFrame(all_users)
-admins_df = pd.DataFrame(all_admins)
+if permissions == "sp":
+    my_supervisors = users_df[(users_df["role"] == "supervisor") & (users_df["Mentor"] == username)]["username"].tolist()
+    all_user_options += [(s, "مشرف") for s in my_supervisors]
 
+if permissions in ["supervisor", "sp"]:
+    assigned_users = users_df[(users_df["role"] == "user") & (users_df["Mentor"].isin([username] + [s for s, _ in all_user_options]))]
+    all_user_options += [(u, "مستخدم") for u in assigned_users["username"].tolist()]
+
+# إضافة سوبر مشرفين (إن وُجدوا) إلى القائمة للدردشة معهم
+# ===== تحميل بيانات الطلاب لعرض التقارير =====
 if permissions == "supervisor":
-    filtered_users = users_df[users_df["mentor"] == username]
+    filtered_users = users_df[(users_df["role"] == "user") & (users_df["Mentor"] == username)]
 elif permissions == "sp":
-    my_supervisors = admins_df[(admins_df["role"] == "supervisor") & (admins_df["mentor"] == username)]["username"].tolist()
-    filtered_users = users_df[users_df["mentor"].isin(my_supervisors)]
+    supervised_supervisors = users_df[(users_df["role"] == "supervisor") & (users_df["Mentor"] == username)]["username"].tolist()
+    filtered_users = users_df[(users_df["role"] == "user") & (users_df["Mentor"].isin(supervised_supervisors))]
 else:
     filtered_users = pd.DataFrame()
 
-all_usernames = filtered_users["username"].tolist()
-
-# ملاحظة: تابع الجزء التالي لتحميل بيانات "daily_data" لكل مستخدم من MySQL أو Google Sheets إذا استُخدمت سابقًا.
-
-# ===== جلب البيانات اليومية من جدول "daily_data" =====
 all_data = []
 users_with_data = []
-for user in all_usernames:
-    result = supabase.table("daily_data").select("*").eq("username", user).eq("level", user_level).execute().data
-    df = pd.DataFrame(result)
-    if not df.empty and "التاريخ" in df.columns:
-        df["التاريخ"] = pd.to_datetime(df["التاريخ"], errors="coerce")
-        df.insert(0, "username", user)
-        all_data.append(df)
-        users_with_data.append(user)
+all_usernames = filtered_users["username"].tolist()
+
+for _, user in filtered_users.iterrows():
+    user_name = user["username"]
+    sheet_name = user["sheet_name"]
+    try:
+        user_ws = spreadsheet.worksheet(sheet_name)
+        user_records = user_ws.get_all_records()
+        df = pd.DataFrame(user_records)
+        if "التاريخ" in df.columns:
+            df["التاريخ"] = pd.to_datetime(df["التاريخ"], errors="coerce")
+            df.insert(0, "username", user_name)
+            all_data.append(df)
+            users_with_data.append(user_name)
+    except Exception as e:
+        st.warning(f"⚠️ خطأ في تحميل بيانات {user_name}: {e}")
 
 if not all_data:
     st.info("ℹ️ لا توجد بيانات.")
@@ -89,23 +108,8 @@ if not all_data:
 
 merged_df = pd.concat(all_data, ignore_index=True)
 
-# ===== التبويبات =====
-tabs = st.tabs([
-    "📊 تقرير إجمالي", 
-    "💬 المحادثات", 
-    "📋 تجميعي الكل", 
-    "📌 تجميعي بند", 
-    "👤 تقرير فردي", 
-    "📈 رسوم بيانية", 
-    "🏆 رصد الإنجاز", 
-    "📍 نقاطي"  # ✅ التبويب الجديد المخصص لتقييم المشرفين
-])
-
-
-# ✅ كل التبويبات ستحتفظ بنفس التنسيقات والوظائف
-# ✅ ستحتاج فقط لربط المحادثات (chat) والإنجازات (notes, achievements_list) بقاعدة Supabase لاحقًا
-
-st.info("✅ تم تحويل الاتصال إلى قاعدة Supabase بنجاح، مع الحفاظ على جميع الميزات والوظائف.")
+# ====== تبويبات الصفحة ======
+tabs = st.tabs([" تقرير إجمالي", "💬 المحادثات", "📋 تجميعي الكل", "📌 تجميعي بند", " تقرير فردي", "📈 رسوم بيانية", "📌 رصد الإنجاز"])
 
 
 
@@ -285,7 +289,7 @@ with tabs[2]:
     </style>
     """, unsafe_allow_html=True)
 
-    
+    st.dataframe(grouped, use_container_width=True)
 
 # ===== تبويب 4: تجميعي بند =====
 with tabs[3]:
@@ -312,7 +316,7 @@ with tabs[3]:
     activity_sum = filtered_df.groupby("username")[selected_activity].sum().sort_values(ascending=True)
     activity_sum = activity_sum.reindex(all_usernames, fill_value=0)  # ✅ ضمان ظهور كل المستخدمين
 
-    
+    st.dataframe(activity_sum, use_container_width=True)
 
 # ===== تبويب 5: تقرير فردي =====
 with tabs[4]:
@@ -339,7 +343,7 @@ with tabs[4]:
     if user_df.empty:
         st.info("لا توجد بيانات لهذا المستخدم في الفترة المحددة.")
     else:
-        
+        st.dataframe(user_df.reset_index(drop=True), use_container_width=True)
 
 # ===== تبويب 6: رسوم بيانية =====
 with tabs[5]:
@@ -452,47 +456,3 @@ with tabs[6]:
                     "الملاحظة": "🏆 الإنجاز"
                 })
                 st.dataframe(filtered[["🕒 التاريخ", " الطالب", "‍🏫 المشرف", "🏆 الإنجاز"]], use_container_width=True)
-
-
-
-
-
-# ===== تبويب 7: تقييم يدوي للمستخدمين (نقاطي) =====
-with tabs[7]:
-    st.subheader("📍 تقييم المستخدمين (يدويًا)")
-
-    # جلب المستخدمين التابعين لهذا المشرف
-    cursor.execute("SELECT username, full_name, level FROM users WHERE mentor = %s", (username,))
-    users = cursor.fetchall()
-
-    if not users:
-        st.info("ℹ️ لا يوجد مستخدمون مرتبطون بك.")
-    else:
-        selected_user_label = st.selectbox("👤 اختر المستخدم", [f"{u['full_name']} ({u['username']})" for u in users])
-        selected_user = selected_user_label.split('(')[-1].replace(')', '').strip()
-        selected_level = next((u['level'] for u in users if u['username'] == selected_user), None)
-
-        # جلب البنود المرتبطة بالمستوى
-        cursor.execute("SELECT id, question, max_score FROM supervisor_criteria WHERE level = %s", (selected_level,))
-        criteria = cursor.fetchall()
-
-        if not criteria:
-            st.warning("⚠️ لا توجد بنود تقييم لهذا المستوى.")
-        else:
-            with st.form("supervisor_eval_form"):
-                st.markdown(f"📝 البنود الخاصة بالمستوى: **{selected_level}**")
-                scores = {}
-                for c in criteria:
-                    score = st.number_input(f"{c['question']} (من {c['max_score']} نقطة)", min_value=0, max_value=c['max_score'], key=c['id'])
-                    scores[c['question']] = score
-
-                submitted = st.form_submit_button("💾 حفظ التقييم")
-
-                if submitted:
-                    for field, value in scores.items():
-                        cursor.execute("""
-                            INSERT INTO supervisor_evaluations (username, supervisor, field_name, score)
-                            VALUES (%s, %s, %s, %s)
-                        """, (selected_user, username, field, value))
-                    conn.commit()
-                    st.success("✅ تم حفظ التقييمات بنجاح.")
