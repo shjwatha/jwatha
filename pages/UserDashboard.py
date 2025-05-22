@@ -64,9 +64,10 @@ tabs = st.tabs([
 
 
 # ===================== تبويب 1: إدخال البيانات (نموذج ديناميكي) =====================
+# ===================== تبويب 1: إدخال البيانات (نموذج ديناميكي) =====================
 with tabs[0]:
     st.markdown(f"<h3 style='color:#0000FF; font-weight:bold;'>👋 أهلاً {username} | مجموعتك: {mentor_name}</h3>", unsafe_allow_html=True)
-    st.markdown("<h4 style='color:#0000FF; font-weight:bold;'>📝 المحاسبة الذاتية اليومية</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color:#0000FF; font-weight:bold;'>📝 المحاسبة الذاتية اليومية (نموذج تلقائي)</h4>", unsafe_allow_html=True)
 
     with st.form("dynamic_evaluation_form"):
         today = datetime.today().date()
@@ -87,32 +88,34 @@ with tabs[0]:
         selected_date = dict(hijri_dates)[selected_label]
         eval_date_str = selected_date.strftime("%Y-%m-%d")
 
-        # جلب البنود من قاعدة البيانات
+        # جلب البنود والخيارات الديناميكية من قاعدة البيانات
         try:
-            cursor.execute("SELECT template_name FROM self_assessment_templates ORDER BY id ASC")
-            templates = [row["template_name"] for row in cursor.fetchall()]
+            cursor.execute("SELECT id, title FROM self_assessment_templates ORDER BY id ASC")
+            templates = cursor.fetchall()
         except Exception as e:
             st.error(f"❌ فشل في تحميل البنود: {e}")
             templates = []
 
         responses = []
         if templates:
-            for t_name in templates:
+            for t in templates:
+                t_id = t["id"]
+                t_title = t["title"]
                 try:
                     cursor.execute(
-                        "SELECT option_text, score FROM self_assessment_options WHERE template_name = %s ORDER BY id ASC",
-                        (t_name,)
+                        "SELECT option_text, score FROM self_assessment_options WHERE template_id = %s ORDER BY id ASC",
+                        (t_id,)
                     )
                     options = cursor.fetchall()
                     if options:
                         option_labels = [f"{o['option_text']} ({o['score']} نقاط)" for o in options]
                         option_map = dict(zip(option_labels, [o['score'] for o in options]))
-                        selected = st.radio(t_name, option_labels, key=t_name)
-                        responses.append((eval_date_str, username, mentor_name, t_name, option_map[selected]))
+                        selected = st.radio(t_title, option_labels, key=t_title)
+                        responses.append((eval_date_str, username, mentor_name, t_title, option_map[selected]))
                     else:
-                        st.warning(f"⚠️ لا توجد خيارات للبند: {t_name}")
+                        st.warning(f"⚠️ لا توجد خيارات للبند: {t_title}")
                 except Exception as e:
-                    st.error(f"❌ خطأ أثناء تحميل خيارات البند '{t_name}': {e}")
+                    st.error(f"❌ خطأ أثناء تحميل خيارات البند '{t_title}': {e}")
         else:
             st.info("ℹ️ لم يتم إعداد النموذج من قبل المشرف العام بعد.")
 
@@ -135,7 +138,6 @@ with tabs[0]:
                     st.error(f"❌ خطأ أثناء حفظ البيانات: {e}")
             else:
                 st.warning("⚠️ لا توجد إجابات لحفظها.")
-
 
 
 
