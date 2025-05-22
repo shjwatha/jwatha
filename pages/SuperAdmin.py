@@ -358,7 +358,7 @@ elif selected_tab == "نقاطي (تقييم من المشرف)":
                 cursor.execute(insert_query, (question, max_score, level))
                 conn.commit()
                 st.success("✅ تم حفظ البند")
-                st.experimental_rerun()  # إعادة تحميل الصفحة بعد التحديث
+                st.rerun()  # إعادة تحميل الصفحة بعد التحديث
             except Exception as e:
                 st.error(f"❌ حدث خطأ أثناء إضافة البند: {e}")
 
@@ -374,7 +374,7 @@ elif selected_tab == "نقاطي (تقييم من المشرف)":
                 with st.expander(f"{row['question']} (درجة كاملة: {row['max_score']})"):
                     col1, col2 = st.columns([1, 1])
                     
-                    # نموذج خاص بتحديث البند
+                    # نموذج منفصل لتحديث البند
                     with col1:
                         with st.form(key=f"edit_form_{row['id']}"):
                             new_question = st.text_input("عنوان البند", value=row['question'], key=f"edit_q_{row['id']}")
@@ -386,11 +386,11 @@ elif selected_tab == "نقاطي (تقييم من المشرف)":
                                     cursor.execute(update_query, (new_question, new_score, row['id']))
                                     conn.commit()
                                     st.success("✅ تم التحديث")
-                                    st.experimental_rerun()  # إعادة تحميل الصفحة بعد التحديث
+                                    st.rerun()  # إعادة تحميل الصفحة بعد التحديث
                                 except Exception as e:
                                     st.error(f"❌ حدث خطأ أثناء التحديث: {e}")
                     
-                    # زر حذف منفصل خارج النموذج للحفاظ على بساطته
+                    # زر حذف منفصل
                     with col2:
                         if st.button("🗑️ حذف", key=f"delete_btn_{row['id']}"):
                             try:
@@ -399,7 +399,7 @@ elif selected_tab == "نقاطي (تقييم من المشرف)":
                                 cursor.execute(delete_query, (row['id'],))
                                 conn.commit()
                                 st.success("✅ تم الحذف")
-                                st.experimental_rerun()  # إعادة تحميل الصفحة بعد الحذف
+                                st.rerun()  # إعادة تحميل الصفحة بعد الحذف
                             except Exception as e:
                                 st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
         else:
