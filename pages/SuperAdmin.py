@@ -157,24 +157,29 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
     st.header("📝 إعداد نموذج التقييم الذاتي")
 
     st.subheader("➕ إضافة بند تقييم")
+
     with st.form("add_criterion"):
+        level = st.selectbox("اختر المستوى", [lvl['level_name'] for lvl in levels], key="assessment_level")
         question = st.text_input("عنوان البند (السؤال)")
         input_type = st.selectbox("نوع الإجابة", ["اختيار واحد", "اختيار متعدد"])
         submitted_q = st.form_submit_button("➕ أضف البند")
 
         if submitted_q and question:
             cursor.execute(
-                "INSERT INTO self_assessment_templates (question, input_type) VALUES (%s, %s)",
-                (question, input_type)
+                "INSERT INTO self_assessment_templates (question, input_type, level) VALUES (%s, %s, %s)",
+                (question, input_type, level)
             )
             conn.commit()
             st.success("✅ تم إضافة البند")
             st.rerun()
 
-    cursor.execute("SELECT * FROM self_assessment_templates")
+    st.subheader("🧩 البنود الحالية حسب المستوى")
+    selected_template_level = st.selectbox("اختر المستوى لعرض البنود", [lvl['level_name'] for lvl in levels], key="template_view_level")
+
+    cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (selected_template_level,))
     questions = cursor.fetchall()
+
     if questions:
-        st.subheader("🧩 البنود الحالية")
         for q in questions:
             with st.expander(f"{q['question']} ({q['input_type']})"):
                 cursor.execute("SELECT * FROM self_assessment_options WHERE question_id = %s", (q["id"],))
@@ -198,46 +203,38 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
 
 # ========== التبويب الثالث: نقاطي ==========
 elif selected_tab == "نقاطي (تقييم من المشرف)":
-    st.header("🏅 التقييم اليدوي للمستخدمين")
+    st.header("🏅 إعداد بنود تقييم من المشرف")
 
-    cursor.execute("SELECT username, full_name FROM admins WHERE role = 'supervisor'")
-    supervisors = cursor.fetchall()
-    if not supervisors:
-        st.info("🚫 لا يوجد مشرفين.")
+    st.subheader("➕ إضافة بند جديد")
+
+    with st.form("add_supervisor_criterion"):
+        level = st.selectbox("اختر المستوى", [lvl['level_name'] for lvl in levels], key="supervised_level")
+        question = st.text_input("عنوان البند")
+        max_score = st.number_input("الدرجة الكاملة", min_value=1, max_value=100, value=10)
+        submitted = st.form_submit_button("➕ أضف البند")
+
+        if submitted and question:
+            cursor.execute(
+                "INSERT INTO supervisor_criteria (question, max_score, level) VALUES (%s, %s, %s)",
+                (question, max_score, level)
+            )
+            conn.commit()
+            st.success("✅ تم حفظ البند")
+            st.rerun()
+
+    st.subheader("📋 البنود الحالية حسب المستوى")
+
+    selected_supervised_level = st.selectbox("اختر المستوى", [lvl['level_name'] for lvl in levels], key="supervised_view")
+
+    cursor.execute("SELECT * FROM supervisor_criteria WHERE level = %s", (selected_supervised_level,))
+    results = cursor.fetchall()
+
+    if results:
+        df = pd.DataFrame(results)
+        df.rename(columns={"question": "البند", "max_score": "الدرجة القصوى"}, inplace=True)
+        st.dataframe(df[["البند", "الدرجة القصوى"]], use_container_width=True)
     else:
-        selected_supervisor = st.selectbox("اختر المشرف", [f"{s['full_name']} ({s['username']})" for s in supervisors])
-        mentor_username = selected_supervisor.split("(")[-1].replace(")", "").strip()
-
-        cursor.execute("SELECT username, full_name FROM users WHERE mentor = %s", (mentor_username,))
-        mentees = cursor.fetchall()
-        if not mentees:
-            st.info("📭 لا يوجد مستخدمين تحت هذا المشرف.")
-        else:
-            selected_user = st.selectbox("👤 اختر المستخدم", [f"{m['full_name']} ({m['username']})" for m in mentees])
-            user_username = selected_user.split("(")[-1].replace(")", "").strip()
-
-            with st.form("add_score"):
-                title = st.text_input("اسم التقييم", placeholder="مثال: سلوك، انضباط، أداء عام")
-                score = st.number_input("الدرجة", 0, 100, step=1)
-                submit_score = st.form_submit_button("📥 حفظ التقييم")
-
-                if submit_score and title:
-                    cursor.execute(
-                        "INSERT INTO user_scores (user, score_title, score_value, evaluator, created_at) VALUES (%s, %s, %s, %s, NOW())",
-                        (user_username, title, score, mentor_username)
-                    )
-                    conn.commit()
-                    st.success("✅ تم تسجيل التقييم")
-
-    st.subheader("📊 جميع التقييمات")
-    cursor.execute("SELECT * FROM user_scores ORDER BY created_at DESC")
-    scores = cursor.fetchall()
-    if scores:
-        df = pd.DataFrame(scores)
-        df.columns = ["المعرف", "المستخدم", "عنوان التقييم", "الدرجة", "المُقيّم", "تاريخ التقييم"]
-        st.dataframe(df)
-    else:
-        st.info("لا توجد تقييمات بعد.")
+        st.info("لا توجد بنود تقييم لهذا المستوى بعد.")
 
 # ========== التبويب الرابع: نقل المستويات ==========
 elif selected_tab == "نقل المستويات":
