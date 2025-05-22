@@ -213,7 +213,7 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
             )
             conn.commit()
             st.success("✅ تم إضافة البند")
-            st.rerun()
+            st.experimental_rerun()  # إعادة تحميل الصفحة بعد إضافة البند
 
     st.subheader("🧩 البنود الحالية حسب المستوى")
     selected_template_level = st.selectbox("اختر المستوى لعرض البنود", [lvl['level_name'] for lvl in levels], key="template_view_level")
@@ -241,13 +241,13 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                             cursor.execute("UPDATE self_assessment_templates SET question = %s, input_type = %s WHERE id = %s", (new_question, new_input_type, q["id"]))
                             conn.commit()
                             st.success("✅ تم التحديث")
-                            st.rerun()
+                            st.experimental_rerun()  # إعادة تحميل الصفحة بعد التحديث
                 with col2:
                     if st.button(f"🗑️ حذف البند {q['id']}", key=f"delete_q_button_{q['id']}"):
                         cursor.execute("UPDATE self_assessment_templates SET is_deleted = TRUE WHERE id = %s", (q["id"],))
                         conn.commit()
                         st.success("✅ تم حذف البند")
-                        st.rerun()
+                        st.experimental_rerun()  # إعادة تحميل الصفحة بعد الحذف
 
                 cursor.execute("SELECT * FROM self_assessment_options WHERE question_id = %s", (q["id"],))
                 options = cursor.fetchall()
@@ -260,7 +260,7 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                             cursor.execute("DELETE FROM self_assessment_options WHERE id = %s", (opt["id"],))
                             conn.commit()
                             st.success("✅ تم حذف الخيار")
-                            st.rerun()
+                            st.experimental_rerun()  # إعادة تحميل الصفحة بعد حذف الخيار
 
                 with st.form(f"add_option_{q['id']}"):
                     option_text = st.text_input(f"النص الخاص بالخيار {q['id']}", key=f"opt_text_{q['id']}")
@@ -274,7 +274,7 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                         )
                         conn.commit()
                         st.success("✅ تم إضافة الخيار")
-                        st.rerun()
+                        st.experimental_rerun()  # إعادة تحميل الصفحة بعد إضافة الخيار
 
 # ========== التبويب الثالث: نقاطي ==========
 elif selected_tab == "نقاطي (تقييم من المشرف)":
