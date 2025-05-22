@@ -13,7 +13,7 @@ conn = pymysql.connect(
     database=st.secrets["DB_NAME"],
     charset='utf8mb4'
 )
-conn.set_charset('utf8mb4')  # ✅ تأكيد استخدام الترميز
+
 cursor = conn.cursor(pymysql.cursors.DictCursor)
 
 # التحقق من تسجيل الدخول
