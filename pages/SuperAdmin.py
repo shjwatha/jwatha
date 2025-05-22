@@ -81,8 +81,10 @@ if selected_tab == "إدارة الأعضاء":
                 with col1:
                     if st.button(f"📝 تعديل {admin['username']}", key=f"edit_admin_{admin['id']}"):
                         new_full_name = st.text_input("الاسم الكامل", value=admin['full_name'])
-                        new_level = st.selectbox("المستوى", [lvl['level_name'] for lvl in levels], index=[lvl['level_name'] for lvl in levels].index(admin['level']))
-                        new_role = st.selectbox("الدور", ["admin", "sp", "supervisor"], index=["admin", "sp", "supervisor"].index(admin['role']))
+                        level_names = [lvl['level_name'] for lvl in levels]
+                        new_level = st.selectbox("المستوى", level_names, index=level_names.index(admin['level']) if admin['level'] in level_names else 0)
+                        role_names = ["admin", "sp", "supervisor"]
+                        new_role = st.selectbox("الدور", role_names, index=role_names.index(admin['role']) if admin['role'] in role_names else 0)
                         if st.button(f"تحديث"):
                             cursor.execute("UPDATE admins SET full_name = %s, level = %s, role = %s WHERE id = %s", (new_full_name, new_level, new_role, admin['id']))
                             conn.commit()
@@ -104,7 +106,8 @@ if selected_tab == "إدارة الأعضاء":
                 with col1:
                     if st.button(f"📝 تعديل {user['username']}", key=f"edit_user_{user['id']}"):
                         new_full_name = st.text_input("الاسم الكامل", value=user['full_name'])
-                        new_level = st.selectbox("المستوى", [lvl['level_name'] for lvl in levels], index=[lvl['level_name'] for lvl in levels].index(user['level']))
+                        level_names = [lvl['level_name'] for lvl in levels]
+                        new_level = st.selectbox("المستوى", level_names, index=level_names.index(user['level']) if user['level'] in level_names else 0)
                         new_mentor = st.selectbox("المشرف", [user['mentor'] for user in users])
                         if st.button(f"تحديث"):
                             cursor.execute("UPDATE users SET full_name = %s, level = %s, mentor = %s WHERE id = %s", (new_full_name, new_level, new_mentor, user['id']))
