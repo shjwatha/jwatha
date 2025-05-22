@@ -13,8 +13,6 @@ conn = pymysql.connect(
     database=st.secrets["DB_NAME"],
     charset='utf8mb4'
 )
-conn.set_charset('utf8mb4')
-
 cursor = conn.cursor(pymysql.cursors.DictCursor)
 
 # التحقق من تسجيل الدخول
@@ -174,14 +172,14 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
             conn.commit()
             st.success("✅ تم إضافة البند")
             st.rerun()
-
     st.subheader("🧩 البنود الحالية حسب المستوى")
-    selected_template_level = st.selectbox(
-    "اختر المستوى لعرض البنود", 
-    [str(lvl['level_name']) for lvl in levels],
-    key="template_view_level"
-)
-
+    st.markdown("### اختر المستوى لعرض البنود")
+    selected_template_level = st.radio(
+        "المستويات:",
+        [lvl['level_name'] for lvl in levels],
+        horizontal=True,
+        key="template_view_level_radio"
+    )
 
     cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (selected_template_level,))
     questions = cursor.fetchall()
