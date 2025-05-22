@@ -48,128 +48,89 @@ with st.form("add_level"):
         st.success("✅ تم إضافة المستوى")
         st.rerun()
 
-# 🧑‍💼 إضافة مدير (آدمن) مرتبط بمستوى
-st.subheader("🧑‍💼 إضافة مدير للمستوى")
+# 🧾 عرض قائمة الأعضاء حسب النوع مع خيار الحذف
+st.subheader("👥 قائمة الأعضاء")
+عرض_حسب = st.selectbox("📌 اختر نوع العرض", ["المستوى", "الآدمن", "السوبر مشرف", "المشرف", "المستخدم"])
 
-with st.form("add_admin"):
-    full_name = st.text_input("الاسم الكامل للآدمن")
-    username = st.text_input("اسم المستخدم")
-    password = st.text_input("كلمة المرور")
-    level_options = [lvl['level_name'] for lvl in levels]
-    level = st.selectbox("اختر المستوى", level_options)
-    submit_admin = st.form_submit_button("➕ إضافة")
-
-    if submit_admin:
-        cursor.execute("SELECT * FROM admins WHERE username = %s", (username,))
-        if cursor.fetchone():
-            st.warning("⚠️ اسم المستخدم مستخدم مسبقًا.")
-        else:
-            cursor.execute(
-                "INSERT INTO admins (full_name, username, password, role, level) VALUES (%s, %s, %s, %s, %s)",
-                (full_name, username, password, 'admin', level)
-            )
+if عرض_حسب == "المستوى":
+    المستويات = [lvl['level_name'] for lvl in levels]
+    مستوى_مختار = st.selectbox("🎯 اختر المستوى", المستويات)
+    cursor.execute("SELECT full_name, username, role FROM admins WHERE level = %s UNION SELECT full_name, username, role FROM users WHERE level = %s", (مستوى_مختار, مستوى_مختار))
+    members = cursor.fetchall()
+    if members:
+        df = pd.DataFrame(members)
+        df.columns = ["الاسم الكامل", "اسم المستخدم", "الدور"]
+        selected_user = st.selectbox("اختر مستخدم لحذفه", df["اسم المستخدم"]) if not df.empty else None
+        if st.button("🗑️ حذف المستخدم") and selected_user:
+            table = "admins" if any(m['username'] == selected_user and m['role'] != 'user' for m in members) else "users"
+            cursor.execute(f"DELETE FROM {table} WHERE username = %s", (selected_user,))
             conn.commit()
-            st.success("✅ تم إضافة الآدمن")
+            st.success(f"✅ تم حذف المستخدم: {selected_user}")
             st.rerun()
+        st.dataframe(df)
+    else:
+        st.info("لا يوجد أعضاء في هذا المستوى.")
 
-# 👨‍🏫 إضافة سوبر مشرف مرتبط بمستوى
-st.subheader("👨‍🏫 إضافة سوبر مشرف")
-
-with st.form("add_sp"):
-    full_name = st.text_input("الاسم الكامل للسوبر مشرف")
-    username = st.text_input("اسم المستخدم")
-    password = st.text_input("كلمة المرور")
-    level = st.selectbox("اختر المستوى للسوبر مشرف", level_options, key="sp_level")
-    submit_sp = st.form_submit_button("➕ إضافة سوبر مشرف")
-
-    if submit_sp:
-        cursor.execute("SELECT * FROM admins WHERE username = %s", (username,))
-        if cursor.fetchone():
-            st.warning("⚠️ اسم المستخدم موجود مسبقًا.")
-        else:
-            cursor.execute(
-                "INSERT INTO admins (full_name, username, password, role, level) VALUES (%s, %s, %s, %s, %s)",
-                (full_name, username, password, 'sp', level)
-            )
+elif عرض_حسب == "الآدمن":
+    cursor.execute("SELECT full_name, username, level FROM admins WHERE role = 'admin'")
+    admins = cursor.fetchall()
+    if admins:
+        df = pd.DataFrame(admins)
+        df.columns = ["الاسم الكامل", "اسم المستخدم", "المستوى"]
+        selected_user = st.selectbox("اختر آدمن لحذفه", df["اسم المستخدم"]) if not df.empty else None
+        if st.button("🗑️ حذف الآدمن") and selected_user:
+            cursor.execute("DELETE FROM admins WHERE username = %s", (selected_user,))
             conn.commit()
-            st.success("✅ تم إضافة السوبر مشرف")
+            st.success(f"✅ تم حذف الآدمن: {selected_user}")
             st.rerun()
+        st.dataframe(df)
+    else:
+        st.info("لا يوجد آدمن حالياً.")
 
-# 👨‍💼 إضافة مشرف مباشر مرتبط بسوبر مشرف (نفس المستوى)
-st.subheader("👨‍💼 إضافة مشرف مباشر")
+elif عرض_حسب == "السوبر مشرف":
+    cursor.execute("SELECT full_name, username, level FROM admins WHERE role = 'sp'")
+    sps = cursor.fetchall()
+    if sps:
+        df = pd.DataFrame(sps)
+        df.columns = ["الاسم الكامل", "اسم المستخدم", "المستوى"]
+        selected_user = st.selectbox("اختر سوبر مشرف لحذفه", df["اسم المستخدم"]) if not df.empty else None
+        if st.button("🗑️ حذف السوبر مشرف") and selected_user:
+            cursor.execute("DELETE FROM admins WHERE username = %s", (selected_user,))
+            conn.commit()
+            st.success(f"✅ تم حذف السوبر مشرف: {selected_user}")
+            st.rerun()
+        st.dataframe(df)
+    else:
+        st.info("لا يوجد سوبر مشرفين.")
 
-# جلب قائمة السوبر مشرفين
-cursor.execute("SELECT username, full_name, level FROM admins WHERE role = 'sp'")
-supervisors = cursor.fetchall()
+elif عرض_حسب == "المشرف":
+    cursor.execute("SELECT full_name, username, mentor, level FROM admins WHERE role = 'supervisor'")
+    supervisors = cursor.fetchall()
+    if supervisors:
+        df = pd.DataFrame(supervisors)
+        df.columns = ["الاسم الكامل", "اسم المستخدم", "السوبر مشرف", "المستوى"]
+        selected_user = st.selectbox("اختر مشرف لحذفه", df["اسم المستخدم"]) if not df.empty else None
+        if st.button("🗑️ حذف المشرف") and selected_user:
+            cursor.execute("DELETE FROM admins WHERE username = %s", (selected_user,))
+            conn.commit()
+            st.success(f"✅ تم حذف المشرف: {selected_user}")
+            st.rerun()
+        st.dataframe(df)
+    else:
+        st.info("لا يوجد مشرفين.")
 
-if not supervisors:
-    st.info("🔸 لا يوجد سوبر مشرفين حالياً.")
-else:
-    with st.form("add_supervisor"):
-        full_name = st.text_input("اسم المشرف")
-        username = st.text_input("اسم المستخدم")
-        password = st.text_input("كلمة المرور")
-        selected_sp = st.selectbox("اختر سوبر مشرف", [f"{s['full_name']} ({s['username']})" for s in supervisors])
-        sp_username = selected_sp.split('(')[-1].replace(')', '').strip()
-        sp_level = next((s['level'] for s in supervisors if s['username'] == sp_username), None)
-        submit_sup = st.form_submit_button("➕ إضافة مشرف")
-
-        if submit_sup:
-            cursor.execute("SELECT * FROM admins WHERE username = %s", (username,))
-            if cursor.fetchone():
-                st.warning("⚠️ اسم المستخدم مستخدم مسبقًا.")
-            else:
-                cursor.execute(
-                    "INSERT INTO admins (full_name, username, password, role, level, mentor) VALUES (%s, %s, %s, %s, %s, %s)",
-                    (full_name, username, password, 'supervisor', sp_level, sp_username)
-                )
-                conn.commit()
-                st.success("✅ تم إضافة المشرف")
-                st.rerun()
-
-# 👤 إضافة مستخدم جديد مرتبط بمشرف
-st.subheader("👤 إضافة مستخدم جديد")
-
-# جلب المشرفين
-cursor.execute("SELECT username, full_name, level FROM admins WHERE role = 'supervisor'")
-mentors = cursor.fetchall()
-
-if not mentors:
-    st.info("🔸 لا يوجد مشرفون حالياً.")
-else:
-    with st.form("add_user"):
-        full_name = st.text_input("اسم المستخدم الكامل")
-        username = st.text_input("اسم المستخدم")
-        password = st.text_input("كلمة المرور")
-        selected_mentor = st.selectbox("اختر مشرف", [f"{m['full_name']} ({m['username']})" for m in mentors])
-        mentor_username = selected_mentor.split('(')[-1].replace(')', '').strip()
-        mentor_level = next((m['level'] for m in mentors if m['username'] == mentor_username), None)
-
-        submit_user = st.form_submit_button("➕ إضافة المستخدم")
-
-        if submit_user:
-            cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
-            if cursor.fetchone():
-                st.warning("⚠️ اسم المستخدم موجود مسبقًا.")
-            else:
-                cursor.execute(
-                    "INSERT INTO users (full_name, username, password, role, level, mentor) VALUES (%s, %s, %s, %s, %s, %s)",
-                    (full_name, username, password, 'user', mentor_level, mentor_username)
-                )
-                conn.commit()
-                st.success("✅ تم إضافة المستخدم")
-                st.rerun()
-
-# 🧾 عرض المستخدمين
-st.subheader("📋 قائمة المستخدمين")
-cursor.execute("SELECT full_name, username, level, mentor FROM users ORDER BY created_at DESC")
-users = cursor.fetchall()
-if users:
-    st.dataframe(pd.DataFrame(users))
-
-# 🧾 عرض الإداريين
-st.subheader("📋 قائمة الإداريين")
-cursor.execute("SELECT full_name, username, role, level, mentor FROM admins ORDER BY role, level")
-admins = cursor.fetchall()
-if admins:
-    st.dataframe(pd.DataFrame(admins))
+elif عرض_حسب == "المستخدم":
+    cursor.execute("SELECT full_name, username, mentor, level FROM users")
+    users = cursor.fetchall()
+    if users:
+        df = pd.DataFrame(users)
+        df.columns = ["الاسم الكامل", "اسم المستخدم", "المشرف", "المستوى"]
+        selected_user = st.selectbox("اختر مستخدم لحذفه", df["اسم المستخدم"]) if not df.empty else None
+        if st.button("🗑️ حذف المستخدم") and selected_user:
+            cursor.execute("DELETE FROM users WHERE username = %s", (selected_user,))
+            conn.commit()
+            st.success(f"✅ تم حذف المستخدم: {selected_user}")
+            st.rerun()
+        st.dataframe(df)
+    else:
+        st.info("لا يوجد مستخدمين.")
