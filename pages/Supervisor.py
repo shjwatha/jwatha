@@ -1,36 +1,26 @@
 import streamlit as st
 import pandas as pd
+import pymysql
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
-import pymysql
 
-# ===== إعداد الصفحة وفحص تسجيل الدخول =====
+# ===== إعداد الصفحة والتحقق من الجلسة =====
 st.set_page_config(page_title="📊 تقارير المشرف", page_icon="📊", layout="wide")
 
 if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
     st.error("🚫 الرجاء تسجيل الدخول.")
     st.stop()
 
-# التأكد من وجود معلومات المستخدم في الجلسة
-username = st.session_state.get("username", "المستخدم")
+username = st.session_state.get("username", "")
 permissions = st.session_state.get("permissions", "")
+
+if permissions not in ["supervisor", "sp"]:
+    st.error("🚫 لا تملك صلاحية الوصول لهذه الصفحة.")
+    st.stop()
 
 st.title(f"👋 أهلاً {username}")
 
-# ===== ضبط اتجاه النص إلى اليمين =====
-st.markdown(
-    """
-    <style>
-    body, .stTextInput, .stTextArea, .stSelectbox, .stButton, .stMarkdown, .stDataFrame {
-        direction: rtl;
-        text-align: right;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# ===== الاتصال بقاعدة بيانات MySQL =====
+# ===== الاتصال بقاعدة البيانات =====
 try:
     conn = pymysql.connect(
         host=st.secrets["DB_HOST"],
@@ -45,344 +35,293 @@ except Exception as e:
     st.error(f"❌ فشل الاتصال بقاعدة البيانات: {e}")
     st.stop()
 
-# ===== تحميل بيانات المستخدمين (الطلاب) =====
-cursor.execute("SELECT * FROM users WHERE is_deleted = FALSE")
-users_data = cursor.fetchall()
-if users_data:
-    users_df = pd.DataFrame(users_data)
-else:
-    users_df = pd.DataFrame()
-
-# إعداد قائمة المستخدمين للمحادثة بناءً على الصلاحيات
+# ===== تحميل المستخدمين والمشرفين =====
 all_user_options = []
+
 if permissions == "sp":
-    # السوبر مشرف: يجلب قائمة المشرفين التابعين له
-    my_supervisors = users_df[(users_df["role"] == "supervisor") & (users_df["mentor"] == username)]["username"].tolist()
+    cursor.execute("SELECT username FROM admins WHERE role = 'supervisor' AND mentor = %s AND is_deleted = FALSE", (username,))
+    my_supervisors = [row["username"] for row in cursor.fetchall()]
     all_user_options += [(s, "مشرف") for s in my_supervisors]
+else:
+    my_supervisors = []
 
-if permissions in ["supervisor", "sp"]:
-    # المشرف: يجلب قائمة الطلاب المرتبطين به
-    assigned_users = users_df[(users_df["role"] == "user") & (users_df["mentor"].isin([username] + [s for s, _ in all_user_options]))]
-    all_user_options += [(u, "مستخدم") for u in assigned_users["username"].tolist()]
+# تحميل الطلاب المرتبطين بالمشرف أو السوبر مشرف
+my_users = []
 
-# تحميل بيانات التقارير من جدول reports (يُفترض وجود جدول تقارير يحتوي على عمود "التاريخ" و"username" وباقي البنود)
+for supervisor in ([username] + my_supervisors):
+    cursor.execute("SELECT username FROM users WHERE role = 'user' AND mentor = %s AND is_deleted = FALSE", (supervisor,))
+    my_users += [row["username"] for row in cursor.fetchall()]
+
+all_user_options += [(u, "مستخدم") for u in my_users]
+
+# تحميل تقارير الأداء
 try:
     merged_df = pd.read_sql("SELECT * FROM reports", conn)
 except Exception as e:
-    st.error(f"❌ حدث خطأ أثناء جلب بيانات التقارير: {e}")
+    st.error(f"❌ حدث خطأ أثناء تحميل تقارير الأداء: {e}")
     merged_df = pd.DataFrame()
 
-# إنشاء التبويبات الرئيسية
+# إنشاء التبويبات
 tabs = st.tabs([
     "تقرير إجمالي", 
     "💬 المحادثات", 
     "📋 تجميعي الكل", 
     "📌 تجميعي بند",  
     "تقرير فردي", 
-    "📈 رسوم بيانية", 
-    "📌 رصد الإنجاز"
+    "📈 رسوم بيانية"
 ])
 
-##########################################
-# تبويب 1: تقرير إجمالي
-##########################################
+# ===== تبويب 1: تقرير إجمالي =====
 with tabs[0]:
-    st.subheader("تقرير إجمالي")
+    st.subheader("📄 تقرير إجمالي")
     col1, col2 = st.columns(2)
     with col1:
-        start_date = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7), key="start_date_0")
+        start_date = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7))
     with col2:
-        end_date = st.date_input("إلى تاريخ", datetime.today().date(), key="end_date_0")
-    
+        end_date = st.date_input("إلى تاريخ", datetime.today().date())
+
     if not merged_df.empty and "التاريخ" in merged_df.columns:
-        merged_df["التاريخ"] = pd.to_datetime(merged_df["التاريخ"], errors="coerce")
+        merged_df["التاريخ"] = pd.to_datetime(merged_df["التاريخ"], format="%Y-%m-%d", errors="coerce")
         filtered_df = merged_df[
             (merged_df["التاريخ"] >= pd.to_datetime(start_date)) &
             (merged_df["التاريخ"] <= pd.to_datetime(end_date))
         ]
         st.dataframe(filtered_df, use_container_width=True)
     else:
-        st.info("ℹ️ لا توجد بيانات للتقرير.")
+        st.info("ℹ️ لا توجد بيانات متاحة.")
 
-##########################################
-# تبويب 2: المحادثات
-##########################################
+# ===== تبويب 2: المحادثات =====
 with tabs[1]:
-    st.subheader("💬 المحادثات")
+    st.subheader("💬 المحادثة")
+    display_options = ["اختر الشخص"] + [f"{name} ({role})" for name, role in all_user_options]
+    selected_display = st.selectbox("اختر الشخص", display_options)
     
-    def show_chat_supervisor():
-        st.subheader("الدردشة")
-        if "selected_user_display" not in st.session_state:
-            st.session_state["selected_user_display"] = "اختر الشخص"
-        options_display = ["اختر الشخص"] + [f"{name} ({role})" for name, role in all_user_options]
-        selected_display = st.selectbox("اختر الشخص", options_display, key="selected_user_display")
-        
-        if selected_display != "اختر الشخص":
-            # استخراج اسم المستخدم من النص (مثلاً: "محمد (مشرف)")
-            selected_user = selected_display.split("(")[0].strip()
-            try:
-                # جلب بيانات الدردشة من جدول chat_messages
-                chat_df = pd.read_sql("SELECT * FROM chat_messages", conn)
-            except Exception as e:
-                st.error(f"❌ حدث خطأ أثناء جلب بيانات الدردشة: {e}")
-                chat_df = pd.DataFrame()
-            
-            if chat_df.empty:
-                st.info("💬 لا توجد رسائل بعد.")
-            else:
-                required_columns = {"timestamp", "from", "to", "message", "read_by_receiver"}
-                if not required_columns.issubset(chat_df.columns):
-                    st.warning(f"⚠️ الأعمدة المطلوبة غير موجودة في بيانات الدردشة. الأعمدة الموجودة: {list(chat_df.columns)}")
-                else:
-                    # تحديث حالة الرسائل غير المقروءة
-                    unread_indexes = chat_df[
-                        (chat_df["from"] == selected_user) &
-                        (chat_df["to"] == username) &
-                        (chat_df["read_by_receiver"].astype(str).str.strip() == "")
-                    ].index.tolist()
-                    for i in unread_indexes:
-                        cursor.execute("UPDATE chat_messages SET read_by_receiver = %s WHERE id = %s", ("✓", chat_df.loc[i, "id"]))
-                        conn.commit()
-                    
-                    # عرض الرسائل (من المستخدم الحالي أو من الشخص المحدد)
-                    messages = chat_df[
-                        ((chat_df["from"] == username) & (chat_df["to"] == selected_user)) |
-                        ((chat_df["from"] == selected_user) & (chat_df["to"] == username))
-                    ].sort_values(by="timestamp")
-                    
-                    if messages.empty:
-                        st.info("💬 لا توجد رسائل بعد.")
-                    else:
-                        for _, msg in messages.iterrows():
-                            if msg["from"] == username:
-                                st.markdown(f"<p style='color:#8B0000;'>أنت: {msg['message']}</p>", unsafe_allow_html=True)
-                            else:
-                                st.markdown(f"<p style='color:#000080;'>{msg['from']}: {msg['message']}</p>", unsafe_allow_html=True)
-            
-            new_msg = st.text_area("✏️ اكتب رسالتك", height=100, key="chat_message")
-            if st.button("📨 إرسال الرسالة"):
-                if new_msg.strip():
-                    msg_timestamp = (datetime.utcnow() + pd.Timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
-                    try:
-                        cursor.execute(
-                            "INSERT INTO chat_messages (timestamp, `from`, `to`, message, read_by_receiver) VALUES (%s, %s, %s, %s, %s)",
-                            (msg_timestamp, username, selected_user, new_msg, "")
-                        )
-                        conn.commit()
-                        st.success("✅ تم إرسال الرسالة")
-                        st.experimental_rerun()
-                    except Exception as e:
-                        st.error(f"❌ حدث خطأ أثناء إرسال الرسالة: {e}")
-                else:
-                    st.warning("⚠️ لا يمكن إرسال رسالة فارغة.")
-    
-    show_chat_supervisor()
+    if selected_display != "اختر الشخص":
+        selected_user = selected_display.split("(")[0].strip()
+        try:
+            chat_df = pd.read_sql("SELECT * FROM chat_messages", conn)
+        except Exception as e:
+            st.error(f"❌ فشل تحميل المحادثات: {e}")
+            chat_df = pd.DataFrame()
 
-##########################################
-# تبويب 3: تجميعي الكل
-##########################################
+        if not chat_df.empty:
+            unread = chat_df[
+                (chat_df["sender"] == selected_user) &
+                (chat_df["receiver"] == username) &
+                (chat_df["read_by_receiver"] == 0)
+            ]
+            for _, msg in unread.iterrows():
+                cursor.execute("UPDATE chat_messages SET read_by_receiver = 1 WHERE id = %s", (msg["id"],))
+                conn.commit()
+
+            msgs = chat_df[
+                ((chat_df["sender"] == username) & (chat_df["receiver"] == selected_user)) |
+                ((chat_df["sender"] == selected_user) & (chat_df["receiver"] == username))
+            ].sort_values("timestamp")
+
+            for _, msg in msgs.iterrows():
+                sender_name = "أنت" if msg["sender"] == username else msg["sender"]
+                color = "#8B0000" if msg["sender"] == username else "#000080"
+                st.markdown(f"<p style='color:{color};'><b>{sender_name}:</b> {msg['message']}</p>", unsafe_allow_html=True)
+        else:
+            st.info("💬 لا توجد رسائل حالياً.")
+
+        new_msg = st.text_area("✏️ اكتب رسالتك", height=100)
+        if st.button("📨 إرسال الرسالة"):
+            if new_msg.strip():
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                try:
+                    cursor.execute(
+                        "INSERT INTO chat_messages (timestamp, sender, receiver, message, read_by_receiver) VALUES (%s, %s, %s, %s, %s)",
+                        (ts, username, selected_user, new_msg, 0)
+                    )
+                    conn.commit()
+                    st.success("✅ تم الإرسال")
+                    st.experimental_rerun()
+                except Exception as e:
+                    st.error(f"❌ فشل الإرسال: {e}")
+            else:
+                st.warning("⚠️ لا يمكن إرسال رسالة فارغة.")
+
+# ===== تبويب 3: تجميعي الكل =====
 with tabs[2]:
-    st.subheader("📋 تفاصيل الدرجات للجميع")
+    st.subheader("📋 تجميع درجات الكل")
     col1, col2 = st.columns(2)
     with col1:
-        start_date_all = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7), key="start_date_all")
+        start_date_all = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7), key="start_all")
     with col2:
-        end_date_all = st.date_input("إلى تاريخ", datetime.today().date(), key="end_date_all")
-    
-    if not merged_df.empty and "التاريخ" in merged_df.columns:
-        merged_df["التاريخ"] = pd.to_datetime(merged_df["التاريخ"], errors="coerce")
-        filtered_df_all = merged_df[
+        end_date_all = st.date_input("إلى تاريخ", datetime.today().date(), key="end_all")
+
+    if not merged_df.empty:
+        merged_df["التاريخ"] = pd.to_datetime(merged_df["التاريخ"], format="%Y-%m-%d", errors="coerce")
+        df_filtered = merged_df[
             (merged_df["التاريخ"] >= pd.to_datetime(start_date_all)) &
             (merged_df["التاريخ"] <= pd.to_datetime(end_date_all))
         ]
-        # إزالة الأعمدة "التاريخ" واسترجاع باقي الدرجات
         try:
-            scores_df = filtered_df_all.drop(columns=["التاريخ", "username"], errors="ignore")
-            # تجميع النقاط حسب اسم المستخدم
-            grouped = filtered_df_all.groupby("username")[scores_df.columns].sum()
-            # ضمان ظهور جميع المستخدمين (حسب قائمة المستخدمين المسجلة)
-            all_usernames = users_df["username"].tolist() if not users_df.empty else []
-            grouped = grouped.reindex(all_usernames, fill_value=0)
-            grouped = grouped.reset_index()
+            data = df_filtered.drop(columns=["التاريخ", "username"], errors="ignore")
+            grouped = df_filtered.groupby("username")[data.columns].sum()
+            grouped = grouped.reindex(my_users, fill_value=0).reset_index()
             st.dataframe(grouped, use_container_width=True)
         except Exception as e:
-            st.error(f"❌ حدث خطأ أثناء تجميع البيانات: {e}")
+            st.error(f"❌ خطأ في تجميع البيانات: {e}")
     else:
-        st.info("ℹ️ لا توجد بيانات للتقرير.")
+        st.info("ℹ️ لا توجد بيانات متاحة.")
 
-##########################################
-# تبويب 4: تجميعي بند
-##########################################
+# ===== تبويب 4: تجميعي بند =====
 with tabs[3]:
-    st.subheader("📌 تجميعي بند لمستخدم")
+    st.subheader("📌 تجميع حسب بند معين")
     col1, col2 = st.columns(2)
     with col1:
-        start_date_criteria = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7), key="start_date_criteria")
+        start = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7), key="start_criteria")
     with col2:
-        end_date_criteria = st.date_input("إلى تاريخ", datetime.today().date(), key="end_date_criteria")
-    
-    if not merged_df.empty and "التاريخ" in merged_df.columns:
+        end = st.date_input("إلى تاريخ", datetime.today().date(), key="end_criteria")
+
+    if not merged_df.empty:
         merged_df["التاريخ"] = pd.to_datetime(merged_df["التاريخ"], errors="coerce")
-        filtered_df_criteria = merged_df[
-            (merged_df["التاريخ"] >= pd.to_datetime(start_date_criteria)) &
-            (merged_df["التاريخ"] <= pd.to_datetime(end_date_criteria))
+        df_filtered = merged_df[
+            (merged_df["التاريخ"] >= pd.to_datetime(start)) &
+            (merged_df["التاريخ"] <= pd.to_datetime(end))
         ]
-        all_columns = [col for col in filtered_df_criteria.columns if col not in ["التاريخ", "username"]]
-        if all_columns:
-            selected_activity = st.selectbox("اختر البند", all_columns, key="selected_activity")
+        all_cols = [c for c in df_filtered.columns if c not in ["التاريخ", "username"]]
+        if all_cols:
+            selected_col = st.selectbox("اختر البند", all_cols)
             try:
-                activity_sum = filtered_df_criteria.groupby("username")[selected_activity].sum().sort_values(ascending=True)
-                all_usernames = users_df["username"].tolist() if not users_df.empty else []
-                activity_sum = activity_sum.reindex(all_usernames, fill_value=0)
-                st.dataframe(activity_sum, use_container_width=True)
+                summary = df_filtered.groupby("username")[selected_col].sum()
+                summary = summary.reindex(my_users, fill_value=0)
+                st.dataframe(summary)
             except Exception as e:
-                st.error(f"❌ حدث خطأ أثناء تجميع البند: {e}")
+                st.error(f"❌ خطأ في تجميع البند: {e}")
         else:
-            st.info("ℹ️ لا توجد بنود أخرى للتجميع.")
+            st.warning("⚠️ لا توجد بنود متاحة.")
     else:
-        st.info("ℹ️ لا توجد بيانات للتقرير.")
+        st.info("ℹ️ لا توجد بيانات.")
 
-##########################################
-# تبويب 5: تقرير فردي
-##########################################
+# ===== تبويب 5: تقرير فردي =====
 with tabs[4]:
-    st.subheader("تقرير تفصيلي لمستخدم")
+    st.subheader("🧍‍♂️ تقرير مستخدم محدد")
     col1, col2 = st.columns(2)
     with col1:
-        start_date_indiv = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7), key="start_date_indiv")
+        start_ind = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7), key="start_ind")
     with col2:
-        end_date_indiv = st.date_input("إلى تاريخ", datetime.today().date(), key="end_date_indiv")
-    
-    if not merged_df.empty and "التاريخ" in merged_df.columns:
-        merged_df["التاريخ"] = pd.to_datetime(merged_df["التاريخ"], errors="coerce")
-        filtered_df_indiv = merged_df[
-            (merged_df["التاريخ"] >= pd.to_datetime(start_date_indiv)) &
-            (merged_df["التاريخ"] <= pd.to_datetime(end_date_indiv))
-        ]
-        available_users = filtered_df_indiv["username"].unique().tolist()
-        if available_users:
-            selected_user_indiv = st.selectbox("اختر المستخدم", available_users, key="selected_user_indiv")
-            user_df = filtered_df_indiv[filtered_df_indiv["username"] == selected_user_indiv].sort_values("التاريخ")
-            if user_df.empty:
-                st.info("ℹ️ لا توجد بيانات لهذا المستخدم في الفترة المحددة.")
-            else:
-                st.dataframe(user_df.reset_index(drop=True), use_container_width=True)
-        else:
-            st.info("ℹ️ لا توجد بيانات للتقرير.")
-    else:
-        st.info("ℹ️ لا توجد بيانات للتقرير.")
+        end_ind = st.date_input("إلى تاريخ", datetime.today().date(), key="end_ind")
 
-##########################################
-# تبويب 6: رسوم بيانية
-##########################################
+    if not merged_df.empty:
+        merged_df["التاريخ"] = pd.to_datetime(merged_df["التاريخ"], errors="coerce")
+        df_filtered = merged_df[
+            (merged_df["التاريخ"] >= pd.to_datetime(start_ind)) &
+            (merged_df["التاريخ"] <= pd.to_datetime(end_ind))
+        ]
+        available_users = df_filtered["username"].unique().tolist()
+        if available_users:
+            selected_user = st.selectbox("اختر المستخدم", available_users)
+            user_data = df_filtered[df_filtered["username"] == selected_user]
+            st.dataframe(user_data.reset_index(drop=True))
+        else:
+            st.warning("⚠️ لا توجد بيانات.")
+
+# ===== تبويب 6: رسوم بيانية =====
 with tabs[5]:
-    st.subheader("📈 رسوم بيانية")
+    st.subheader("📈 توزيع المجموع")
     col1, col2 = st.columns(2)
     with col1:
-        start_date_chart = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7), key="start_date_chart")
+        start_chart = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7), key="start_chart")
     with col2:
-        end_date_chart = st.date_input("إلى تاريخ", datetime.today().date(), key="end_date_chart")
-    
-    if not merged_df.empty and "التاريخ" in merged_df.columns:
+        end_chart = st.date_input("إلى تاريخ", datetime.today().date(), key="end_chart")
+
+    if not merged_df.empty:
         merged_df["التاريخ"] = pd.to_datetime(merged_df["التاريخ"], errors="coerce")
-        filtered_df_chart = merged_df[
-            (merged_df["التاريخ"] >= pd.to_datetime(start_date_chart)) &
-            (merged_df["التاريخ"] <= pd.to_datetime(end_date_chart))
+        df_chart = merged_df[
+            (merged_df["التاريخ"] >= pd.to_datetime(start_chart)) &
+            (merged_df["التاريخ"] <= pd.to_datetime(end_chart))
         ]
         try:
-            scores_chart = filtered_df_chart.drop(columns=["التاريخ", "username"], errors="ignore")
-            grouped_chart = filtered_df_chart.groupby("username")[scores_chart.columns].sum()
-            all_usernames = users_df["username"].tolist() if not users_df.empty else []
-            grouped_chart = grouped_chart.reindex(all_usernames, fill_value=0)
-            # إضافة عمود المجموع
-            grouped_chart["المجموع"] = grouped_chart.sum(axis=1)
-            # رسم دائرة بيانية
+            chart_data = df_chart.drop(columns=["التاريخ", "username"], errors="ignore")
+            grouped = df_chart.groupby("username")[chart_data.columns].sum()
+            grouped["المجموع"] = grouped.sum(axis=1)
             fig = go.Figure(go.Pie(
-                labels=grouped_chart.index,
-                values=grouped_chart["المجموع"],
+                labels=grouped.index,
+                values=grouped["المجموع"],
                 hole=0.4,
-                title="مجموع الدرجات"
+                title="توزيع النقاط"
             ))
             st.plotly_chart(fig, use_container_width=True)
         except Exception as e:
-            st.error(f"❌ حدث خطأ أثناء رسم الرسوم البيانية: {e}")
+            st.error(f"❌ خطأ في عرض الرسم البياني: {e}")
     else:
-        st.info("ℹ️ لا توجد بيانات للتقرير.")
+        st.info("ℹ️ لا توجد بيانات.")
 
-##########################################
-# تبويب 7: رصد الإنجاز
-##########################################
+# ===== تبويب 7: 📌 رصد الإنجاز =====
 with tabs[6]:
     st.subheader("📌 رصد الإنجاز")
     
-    # الجزء الأول: رصد إنجاز جديد
+    # --- القسم الأول: رصد إنجاز جديد ---
     st.markdown("### ➕ رصد إنجاز جديد")
-    # نفترض أن جدول achievements_list يحتوي على الإنجازات المتاحة
+    
     try:
         achievements_df = pd.read_sql("SELECT achievement FROM achievements_list", conn)
         achievements = achievements_df["achievement"].dropna().tolist() if not achievements_df.empty else []
     except Exception as e:
         st.error(f"❌ تعذر تحميل قائمة الإنجازات: {e}")
         achievements = []
-    
-    if not users_df.empty and "username" in users_df.columns:
-        student_list = users_df[users_df["role"] == "user"]["username"].tolist()
-    else:
+
+    try:
+        student_df = pd.read_sql("SELECT username FROM users WHERE role = 'user' AND is_deleted = FALSE", conn)
+        student_list = student_df["username"].tolist() if not student_df.empty else []
+    except Exception as e:
+        st.error(f"❌ تعذر تحميل قائمة الطلاب: {e}")
         student_list = []
-    
+
     if student_list and achievements:
-        selected_student = st.selectbox("اختر الطالب", student_list, key="student_select_achievement")
+        selected_student = st.selectbox("👤 اختر الطالب", student_list, key="student_select_achievement")
         selected_achievement = st.selectbox("🏆 اختر الإنجاز", achievements, key="achievement_select")
         if st.button("✅ رصد الإنجاز"):
-            # التحقق من التكرار
             try:
-                query_dup = "SELECT * FROM student_achievements WHERE student=%s AND achievement=%s"
-                cursor.execute(query_dup, (selected_student, selected_achievement))
+                cursor.execute("SELECT * FROM student_achievements WHERE student = %s AND achievement = %s", (selected_student, selected_achievement))
                 exists = cursor.fetchone()
-            except Exception as e:
-                st.error(f"❌ حدث خطأ أثناء التحقق: {e}")
-                exists = None
-            if exists:
-                st.warning("⚠️ هذا الإنجاز تم رصده مسبقًا لهذا الطالب. لا يمكن تكراره.")
-            else:
-                timestamp_ach = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-                try:
+                if exists:
+                    st.warning("⚠️ هذا الإنجاز تم رصده مسبقًا لهذا الطالب.")
+                else:
+                    timestamp_now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
                     cursor.execute(
                         "INSERT INTO student_achievements (timestamp, student, supervisor, achievement) VALUES (%s, %s, %s, %s)",
-                        (timestamp_ach, selected_student, username, selected_achievement)
+                        (timestamp_now, selected_student, username, selected_achievement)
                     )
                     conn.commit()
-                    st.success("✅ تم رصد الإنجاز للطالب بنجاح.")
+                    st.success("✅ تم رصد الإنجاز بنجاح.")
                     st.experimental_rerun()
-                except Exception as e:
-                    st.error(f"❌ حدث خطأ أثناء تسجيل الإنجاز: {e}")
+            except Exception as e:
+                st.error(f"❌ حدث خطأ أثناء رصد الإنجاز: {e}")
     else:
-        st.info("ℹ️ تأكد من وجود بيانات الطلاب وقائمة الإنجازات.")
+        st.info("ℹ️ تأكد من وجود بيانات طلاب وقائمة إنجازات.")
 
     st.markdown("---")
+
+    # --- القسم الثاني: عرض إنجازات طالب معين ---
     st.markdown("### 📖 عرض إنجازات طالب")
+
     if student_list:
-        selected_view_student = st.selectbox("📚 اختر الطالب لعرض إنجازاته", student_list, key="student_view_achievement")
+        selected_view_student = st.selectbox("📚 اختر الطالب", student_list, key="student_view_achievement")
         if st.button("📄 عرض الإنجازات"):
             try:
-                query_view = "SELECT timestamp, student, supervisor, achievement FROM student_achievements WHERE student=%s ORDER BY timestamp DESC"
-                df_achievements = pd.read_sql(query_view, conn, params=(selected_view_student,))
-                if df_achievements.empty:
-                    st.warning("⚠️ لا توجد إنجازات مسجلة لهذا الطالب بعد.")
+                ach_query = """
+                    SELECT timestamp, student, supervisor, achievement 
+                    FROM student_achievements 
+                    WHERE student = %s 
+                    ORDER BY timestamp DESC
+                """
+                df_ach = pd.read_sql(ach_query, conn, params=(selected_view_student,))
+                if df_ach.empty:
+                    st.warning("⚠️ لا توجد إنجازات لهذا الطالب.")
                 else:
-                    # إعادة تسمية الأعمدة للتنسيق
-                    df_achievements = df_achievements.rename(columns={
+                    df_ach.rename(columns={
                         "timestamp": "🕒 التاريخ",
                         "student": "الطالب",
-                        "supervisor": "‍🏫 المشرف",
+                        "supervisor": "المشرف",
                         "achievement": "🏆 الإنجاز"
-                    })
-                    st.dataframe(df_achievements, use_container_width=True)
+                    }, inplace=True)
+                    st.dataframe(df_ach, use_container_width=True)
             except Exception as e:
-                st.error(f"❌ حدث خطأ أثناء جلب بيانات الإنجازات: {e}")
+                st.error(f"❌ فشل في عرض الإنجازات: {e}")
     else:
-        st.info("ℹ️ لا توجد بيانات للطلاب.")
-
-# ===== إغلاق الاتصال ==========
-cursor.close()
-conn.close()
+        st.info("ℹ️ لا توجد بيانات لعرضها.")
