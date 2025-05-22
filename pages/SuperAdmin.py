@@ -55,8 +55,6 @@ if selected_tab == "إدارة الأعضاء":
         cursor.execute("SELECT * FROM users WHERE level = %s", (selected_level,))
         users = cursor.fetchall()
         
-        st.dataframe(pd.DataFrame(admins + users))
-
     elif choice in ["الآدمن", "السوبر مشرف", "المشرف"]:
         role_map = {
             "الآدمن": "admin",
