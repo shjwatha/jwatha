@@ -35,6 +35,28 @@ except Exception as e:
     st.error(f"❌ فشل الاتصال بقاعدة البيانات: {e}")
     st.stop()
 
+# ===== التحقق من المستوى والربط الهرمي للمشرفين =====
+try:
+    cursor.execute("SELECT level, mentor FROM admins WHERE username = %s AND is_deleted = FALSE", (username,))
+    row = cursor.fetchone()
+    my_level = row["level"] if row else None
+    my_mentor = row["mentor"] if row else None
+
+    cursor.execute("SELECT level_name FROM levels")
+    valid_levels = [lvl["level_name"] for lvl in cursor.fetchall()]
+
+    if not my_level or my_level not in valid_levels:
+        st.error("⚠️ المستوى المرتبط بهذا الحساب غير معتمد. يرجى مراجعة الإدارة.")
+        st.stop()
+
+    if permissions == "supervisor" and not my_mentor:
+        st.error("⚠️ لا يوجد سوبر مشرف مرتبط بهذا المشرف.")
+        st.stop()
+
+except Exception as e:
+    st.error(f"❌ فشل في التحقق من مستوى المشرف أو السوبر مشرف: {e}")
+    st.stop()
+
 # ===== تحميل المستخدمين والمشرفين =====
 all_user_options = []
 
@@ -45,11 +67,14 @@ if permissions == "sp":
 else:
     my_supervisors = []
 
-# تحميل الطلاب المرتبطين بالمشرف أو السوبر مشرف
+# تحميل الطلاب المرتبطين بالمشرف أو السوبر مشرف (حسب المستوى أيضاً)
 my_users = []
 
 for supervisor in ([username] + my_supervisors):
-    cursor.execute("SELECT username FROM users WHERE role = 'user' AND mentor = %s AND is_deleted = FALSE", (supervisor,))
+    cursor.execute("""
+        SELECT username FROM users 
+        WHERE role = 'user' AND mentor = %s AND is_deleted = FALSE AND level = %s
+    """, (supervisor, my_level))
     my_users += [row["username"] for row in cursor.fetchall()]
 
 all_user_options += [(u, "مستخدم") for u in my_users]
@@ -61,6 +86,7 @@ except Exception as e:
     st.error(f"❌ حدث خطأ أثناء تحميل تقارير الأداء: {e}")
     merged_df = pd.DataFrame()
 
+# التبويبات
 tabs = st.tabs([
     "تقرير إجمالي", 
     "💬 المحادثات", 
@@ -68,9 +94,8 @@ tabs = st.tabs([
     "📌 تجميعي بند",  
     "تقرير فردي", 
     "📈 رسوم بيانية",
-    "📌 رصد الإنجاز"  # ← التبويب السابع
+    "📌 رصد الإنجاز"
 ])
-
 
 # ===== تبويب 1: تقرير إجمالي =====
 with tabs[0]:
