@@ -56,7 +56,6 @@ try:
 except Exception as e:
     st.error(f"❌ فشل في التحقق من مستوى المشرف أو السوبر مشرف: {e}")
     st.stop()
-
 # ===== تحميل المستخدمين والمشرفين =====
 all_user_options = []
 
@@ -101,8 +100,8 @@ if unread_senders:
     names_str = " - ".join(unread_senders)
     st.markdown(
         f"""
-        <div style="background-color:#FFCCCC; padding:10px; border-radius:5px; border: 1px solid red; margin-bottom: 15px;">
-            <b>📨 لديك رسائل جديدة من: {names_str}</b>
+        <div style='background-color:#FFF4CC; padding:12px; border-radius:6px; border:1px solid #FFD700; margin-bottom: 20px;'>
+            <span style='color:red; font-weight:bold; font-size:16px;'>📨 لديك رسائل جديدة من: {names_str}</span>
         </div>
         """,
         unsafe_allow_html=True
