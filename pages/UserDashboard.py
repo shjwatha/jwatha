@@ -58,7 +58,28 @@ except Exception as e:
     st.error(f"❌ فشل في جلب اسم المشرف: {e}")
     mentor_name = "غير معروف"
 
-# ===================== التبويبات =====================
+# ===================== إشعار عند وجود رسائل غير مقروءة =====================
+try:
+    cursor.execute("""
+        SELECT DISTINCT sender 
+        FROM chat_messages 
+        WHERE receiver = %s AND read_by_receiver = 0
+    """, (username,))
+    unread_senders = [row["sender"] for row in cursor.fetchall()]
+except Exception as e:
+    unread_senders = []
+
+if unread_senders:
+    names_str = " - ".join(unread_senders)
+    st.markdown(
+        f"""
+        <p style='color:red; font-weight:bold; font-size:16px; margin-bottom: 20px;'>
+            📨 لديك رسائل جديدة من: {names_str}
+        </p>
+        """,
+        unsafe_allow_html=True
+    )
+
 # ===================== التبويبات =====================
 tabs = st.tabs([
     "📝 إدخال البيانات", 
