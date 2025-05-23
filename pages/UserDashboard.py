@@ -229,6 +229,7 @@ with tabs[1]:
             chat_df = pd.DataFrame()
 
         if not chat_df.empty:
+            # تحديث الرسائل غير المقروءة كمقروءة
             unread = chat_df[
                 (chat_df["sender"] == selected_mentor) &
                 (chat_df["receiver"] == username) &
@@ -236,8 +237,9 @@ with tabs[1]:
             ]
             for _, msg in unread.iterrows():
                 cursor.execute("UPDATE chat_messages SET read_by_receiver = 1 WHERE id = %s", (msg["id"],))
-                conn.commit()
+            conn.commit()
 
+            # عرض الرسائل
             msgs = chat_df[
                 ((chat_df["sender"] == username) & (chat_df["receiver"] == selected_mentor)) |
                 ((chat_df["sender"] == selected_mentor) & (chat_df["receiver"] == username))
@@ -246,10 +248,12 @@ with tabs[1]:
             for _, msg in msgs.iterrows():
                 sender_label = "أنت" if msg["sender"] == username else msg["sender"]
                 color = "#8B0000" if msg["sender"] == username else "#000080"
-                st.markdown(f"<p style='color:{color};'><b>{sender_label}:</b> {msg['message']}</p>", unsafe_allow_html=True)
+                check_icon = "✅" if msg["read_by_receiver"] == 1 else "☑️"
+                st.markdown(f"<p style='color:{color};'><b>{sender_label}:</b> {msg['message']} <span style='float:left;'>{check_icon}</span></p>", unsafe_allow_html=True)
         else:
             st.info("💬 لا توجد رسائل بعد.")
 
+        # إرسال رسالة جديدة
         new_msg = st.text_area("✏️ اكتب رسالتك", height=100)
         if st.button("📨 إرسال الرسالة"):
             if new_msg.strip():
@@ -266,7 +270,6 @@ with tabs[1]:
                     st.error(f"❌ فشل الإرسال: {e}")
             else:
                 st.warning("⚠️ لا يمكن إرسال رسالة فارغة.")
-
 # ===================== تبويب 3: تقارير المجموع =====================
 
 with tabs[2]:
