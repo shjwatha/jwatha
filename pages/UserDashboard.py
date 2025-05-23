@@ -59,7 +59,6 @@ except Exception as e:
     mentor_name = "غير معروف"
 
 # ===================== التبويبات =====================
-
 tabs = st.tabs([
     "📝 إدخال البيانات", 
     "💬 المحادثات", 
@@ -123,25 +122,35 @@ with tabs[0]:
                 try:
                     cursor.execute("SELECT option_text, score FROM self_assessment_options WHERE question_id = %s AND is_deleted = 0 ORDER BY id ASC", (t_id,))
                     options = cursor.fetchall()
-                    if q_type in ["radio", "select"] and options:
+                    if options:
                         option_labels = [f"{o['option_text']} ({o['score']} نقاط)" for o in options]
                         option_map = dict(zip(option_labels, [o['score'] for o in options]))
-                        selected = st.radio(t_title, option_labels, key=f"radio_{t_id}") if q_type == "radio" else st.selectbox(t_title, option_labels, key=f"select_{t_id}")
-                        responses.append((eval_date_str, username, mentor_name, t_title, option_map[selected]))
 
-                    elif q_type == "checkbox" and options:
-                        option_labels = [f"{o['option_text']} ({o['score']} نقاط)" for o in options]
-                        option_map = dict(zip(option_labels, [o['score'] for o in options]))
-                        selected = st.multiselect(t_title, option_labels, key=f"checkbox_{t_id}")
-                        total_score = sum([option_map[opt] for opt in selected])
-                        responses.append((eval_date_str, username, mentor_name, t_title, total_score))
+                        if q_type == "radio":
+                            selected = st.radio(t_title, option_labels, key=f"radio_{t_id}")
+                            responses.append((eval_date_str, username, mentor_name, t_title, option_map[selected]))
 
-                    elif q_type == "text":
-                        user_input = st.text_area(t_title, key=f"text_{t_id}")
-                        responses.append((eval_date_str, username, mentor_name, t_title, 0))
+                        elif q_type == "select":
+                            selected = st.selectbox(t_title, option_labels, key=f"select_{t_id}")
+                            responses.append((eval_date_str, username, mentor_name, t_title, option_map[selected]))
 
+                        elif q_type == "checkbox":
+                            selected = st.multiselect(t_title, option_labels, key=f"checkbox_{t_id}")
+                            total_score = sum([option_map[opt] for opt in selected])
+                            responses.append((eval_date_str, username, mentor_name, t_title, total_score))
+
+                        elif q_type == "text":
+                            user_input = st.text_area(t_title, key=f"text_{t_id}")
+                            responses.append((eval_date_str, username, mentor_name, t_title, 0))
+
+                        else:
+                            st.warning(f"⚠️ نوع السؤال غير مدعوم: {q_type}")
                     else:
-                        st.warning(f"⚠️ لا توجد خيارات للبند: {t_title}")
+                        if q_type == "text":
+                            user_input = st.text_area(t_title, key=f"text_{t_id}")
+                            responses.append((eval_date_str, username, mentor_name, t_title, 0))
+                        else:
+                            st.warning(f"⚠️ لا توجد خيارات للبند: {t_title}")
 
                 except Exception as e:
                     st.error(f"❗️ خطأ أثناء تحميل خيارات البند '{t_title}': {e}")
