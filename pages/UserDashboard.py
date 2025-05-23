@@ -216,7 +216,8 @@ with tabs[1]:
                     )
                     conn.commit()
                     st.success("✅ تم إرسال الرسالة")
-                    st.experimental_rerun()
+                    st.rerun()
+
                 except Exception as e:
                     st.error(f"❌ فشل الإرسال: {e}")
             else:
