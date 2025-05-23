@@ -196,7 +196,7 @@ with tabs[0]:
 
 
 
-
+# ===================== تبويب 2: المحادثات =====================
 with tabs[1]:
     st.subheader("💬 المحادثة مع المشرف")
 
@@ -245,20 +245,14 @@ with tabs[1]:
             for _, msg in msgs.iterrows():
                 sender_label = "أنت" if msg["sender"] == username else msg["sender"]
                 color = "#8B0000" if msg["sender"] == username else "#000080"
-
-                # ✅ عرض رمز الحالة فقط لرسائل المستخدم
                 if msg["sender"] == username:
                     check_icon = "✅" if msg["read_by_receiver"] == 1 else "☑️"
                 else:
                     check_icon = ""
-
-                # ✅ تنسيق التاريخ والوقت
                 ts = msg["timestamp"]
                 if isinstance(ts, str):
                     ts = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
                 time_str = ts.strftime("%I:%M %p - %Y/%m/%d").replace("AM", "صباحًا").replace("PM", "مساءً")
-
-                # ✅ عرض الرسالة + الوقت + رمز القراءة
                 st.markdown(
                     f"""
                     <div style='color:{color}; margin-bottom:2px;'>
@@ -271,8 +265,12 @@ with tabs[1]:
         else:
             st.info("💬 لا توجد رسائل بعد.")
 
-        # ✅ حقل الكتابة
+        # ✅ حقل الإدخال
+        if "new_msg" not in st.session_state:
+            st.session_state["new_msg"] = ""
+
         new_msg = st.text_area("✏️ اكتب رسالتك", height=100, key="new_msg")
+
         if st.button("📨 إرسال الرسالة"):
             if new_msg.strip():
                 ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -283,14 +281,13 @@ with tabs[1]:
                     )
                     conn.commit()
                     st.success("✅ تم إرسال الرسالة")
-                    st.session_state.update({"new_msg": ""})
+                    # نحذف الرسالة ونعيد تحميل الصفحة
+                    del st.session_state["new_msg"]
                     st.rerun()
                 except Exception as e:
                     st.error(f"❌ فشل الإرسال: {e}")
             else:
                 st.warning("⚠️ لا يمكن إرسال رسالة فارغة.")
-
-
 
 # ===================== تبويب 3: تقارير المجموع =====================
 
