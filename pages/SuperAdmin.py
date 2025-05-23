@@ -196,111 +196,160 @@ if selected_tab == "إدارة الأعضاء":
                     st.rerun()
 # ===================== تبويب 2: إنشاء استمارة التقييم الذاتي =====================
 elif selected_tab == "إعداد نموذج التقييم الذاتي":
-    st.header("📝 إعداد نموذج التقييم الذاتي")
-    st.markdown("يرجى إدخال تفاصيل السؤال:")
+    st.header("📝 إعداد نموذج التقييم الذاتي - تسلسل الخطوات")
 
-    with st.form("template_form"):
-        # 1. اختيار المستوى
-        level_options = [lvl['level_name'] for lvl in levels]
-        selected_level = st.selectbox("اختر المستوى", level_options, key="template_level")
+    # إعداد متغير خطوة الإدخال إذا لم يكن موجوداً مسبقاً
+    if "current_step" not in st.session_state:
+        st.session_state["current_step"] = 0
 
-        # 2. إدخال نص السؤال
-        question_text = st.text_input("نص السؤال", key="question_text")
+    # الخطوة 0: اختيار المستوى
+    if st.session_state["current_step"] == 0:
+        with st.form("step0_form"):
+            level_options = [lvl['level_name'] for lvl in levels]
+            selected_level = st.selectbox("الخطوة 0: اختر المستوى", level_options, key="selected_level")
+            if st.form_submit_button("التالي"):
+                st.session_state["current_step"] = 1
+                st.experimental_rerun()
 
-        # 3. اختيار نوع الإدخال
-        input_type_options = [
-            "خيار واحد (radio)",
-            "خيارات متعددة (checkbox)",
-            "نص مفتوح (text)",
-            "قائمة منسدلة (select)"
-        ]
-        input_type = st.selectbox("نوع الإدخال", input_type_options, key="input_type")
+    # الخطوة 1: اختيار نوع السؤال
+    elif st.session_state["current_step"] == 1:
+        with st.form("step1_form"):
+            question_types = [
+                "خيار واحد (radio)",
+                "خيارات متعددة (checkbox)",
+                "نص مفتوح (text)",
+                "قائمة منسدلة (select)"
+            ]
+            selected_question_type = st.selectbox("الخطوة 1: اختر نوع السؤال", question_types, key="selected_question_type")
+            if st.form_submit_button("التالي"):
+                st.session_state["selected_question_type"] = selected_question_type
+                st.session_state["current_step"] = 2
+                st.experimental_rerun()
 
-        # 4. إدخال خيارات السؤال (في حال لم يكن نوع الإجابة نص مفتوح)
-        if input_type != "نص مفتوح (text)":
-            st.markdown("### إضافة خيارات السؤال (لكل خيار: نص + درجة)")
-            # تأكد من وجود قائمة الخيارات بداخل st.session_state
-            if "template_options" not in st.session_state:
-                st.session_state["template_options"] = []
-            
-            # حقول لإدخال خيار جديد
-            new_opt_text = st.text_input("نص الخيار", key="new_opt_text")
-            new_opt_score = st.number_input("الدرجة", min_value=0, max_value=100, step=1, key="new_opt_score")
-            
-            # زر إضافة الخيار
-            if st.button("➕ إضافة خيار", key="add_option_button"):
-                if new_opt_text.strip() == "":
-                    st.warning("⚠️ يرجى إدخال نص الخيار")
-                else:
-                    st.session_state["template_options"].append({
-                        "option_text": new_opt_text,
-                        "score": new_opt_score
-                    })
-                    st.success("✅ تم إضافة الخيار")
+    # الخطوة 2: إدخال نص السؤال
+    elif st.session_state["current_step"] == 2:
+        with st.form("step2_form"):
+            question_text = st.text_input("الخطوة 2: أدخل نص السؤال", key="question_text")
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.form_submit_button("السابق"):
+                    st.session_state["current_step"] = 1
                     st.experimental_rerun()
-            
-            # عرض الخيارات المضافة مع إمكانية الحذف
-            if st.session_state["template_options"]:
-                st.markdown("**الخيارات المضافة:**")
-                for idx, opt in enumerate(st.session_state["template_options"]):
-                    col1, col2 = st.columns([4, 1])
-                    with col1:
-                        st.write(f"{idx+1}. {opt['option_text']} - {opt['score']} نقطة")
-                    with col2:
-                        if st.button("حذف", key=f"remove_option_{idx}"):
-                            st.session_state["template_options"].pop(idx)
-                            st.experimental_rerun()
-        else:
-            # في حالة اختيار "نص مفتوح" نتأكد من مسح أي خيارات محفوظة سابقاً
-            if "template_options" in st.session_state:
-                st.session_state["template_options"] = []
+            with col2:
+                if st.form_submit_button("التالي"):
+                    if question_text.strip() == "":
+                        st.error("❌ يجب إدخال نص السؤال")
+                    else:
+                        st.session_state["question_text"] = question_text
+                        st.session_state["current_step"] = 3
+                        st.experimental_rerun()
 
-        submit_button = st.form_submit_button("حفظ السؤال")
-
-        # عند الضغط على زر الحفظ بعد تعبئة النموذج
-        if submit_button:
-            if question_text.strip() == "":
-                st.error("❌ يجب إدخال نص السؤال")
-            elif input_type != "نص مفتوح (text)" and not st.session_state.get("template_options"):
-                st.error("❌ يجب إضافة خيار واحد على الأقل للسؤال")
-            else:
-                try:
-                    # تحويل قيمة نوع الإدخال إلى صيغة مخزنة في قاعدة البيانات
-                    mapping = {
-                        "خيار واحد (radio)": "radio",
-                        "خيارات متعددة (checkbox)": "checkbox",
-                        "نص مفتوح (text)": "text",
-                        "قائمة منسدلة (select)": "select"
-                    }
-                    db_input_type = mapping.get(input_type, input_type)
-                    
-                    # 5. حفظ السؤال في جدول self_assessment_templates
-                    insert_template_query = """
-                        INSERT INTO self_assessment_templates (level, question, input_type)
-                        VALUES (%s, %s, %s)
-                    """
-                    cursor.execute(insert_template_query, (selected_level, question_text, db_input_type))
-                    conn.commit()
-                    
-                    # الحصول على معرف السؤال الذي تم إضافته
-                    template_id = cursor.lastrowid
-                    
-                    # 6. حفظ خيارات السؤال في جدول self_assessment_options إذا كان نوع الإدخال يتطلب خيارات
-                    if db_input_type != "text":
-                        insert_option_query = """
-                            INSERT INTO self_assessment_options (question_id, option_text, score)
+    # الخطوة 3: إدخال الإجابات (في حالة نوع السؤال لا يعتمد على نص مفتوح)
+    elif st.session_state["current_step"] == 3:
+        selected_type = st.session_state.get("selected_question_type", "نص مفتوح (text)")
+        question_text = st.session_state.get("question_text", "")
+        st.markdown(f"**السؤال:** {question_text}")
+        
+        # لو كان نوع السؤال نص مفتوح فلا حاجة لإضافة إجابات
+        if selected_type == "نص مفتوح (text)":
+            st.info("السؤال من نوع نص مفتوح، لا يتطلب إدخال إجابات.")
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("السابق"):
+                    st.session_state["current_step"] = 2
+                    st.experimental_rerun()
+            with col2:
+                if st.button("حفظ السؤال"):
+                    try:
+                        mapping = {
+                            "خيار واحد (radio)": "radio",
+                            "خيارات متعددة (checkbox)": "checkbox",
+                            "نص مفتوح (text)": "text",
+                            "قائمة منسدلة (select)": "select"
+                        }
+                        db_input_type = mapping[selected_type]
+                        insert_template_query = """
+                            INSERT INTO self_assessment_templates (level, question, input_type)
                             VALUES (%s, %s, %s)
                         """
-                        for opt in st.session_state["template_options"]:
-                            cursor.execute(insert_option_query, (template_id, opt["option_text"], opt["score"]))
+                        cursor.execute(insert_template_query, (st.session_state["selected_level"], question_text, db_input_type))
                         conn.commit()
-                    
-                    st.success("✅ تم حفظ السؤال والخيارات بنجاح")
-                    # إعادة تهيئة قائمة الخيارات وإعادة تحميل الصفحة
-                    st.session_state["template_options"] = []
+                        st.success("✅ تم حفظ السؤال بنجاح")
+                        # إعادة ضبط الخطوات بعد الحفظ
+                        st.session_state["current_step"] = 0
+                        st.experimental_rerun()
+                    except Exception as e:
+                        st.error(f"❌ خطأ أثناء حفظ السؤال: {e}")
+        else:
+            st.markdown("### الخطوة 3: أضف إجابات السؤال (مع الدرجة)")
+            
+            if "answers" not in st.session_state:
+                st.session_state["answers"] = []
+            
+            with st.form("answer_form"):
+                answer_text = st.text_input("أدخل نص الإجابة", key="answer_text")
+                answer_score = st.number_input("أدخل الدرجة", min_value=0, max_value=100, step=1, key="answer_score")
+                if st.form_submit_button("➕ إضافة إجابة"):
+                    if answer_text.strip() == "":
+                        st.warning("⚠️ يرجى إدخال نص الإجابة")
+                    else:
+                        st.session_state["answers"].append({
+                            "answer_text": answer_text,
+                            "score": answer_score
+                        })
+                        st.success("✅ تم إضافة الإجابة")
+                        st.experimental_rerun()
+            
+            if st.session_state["answers"]:
+                st.markdown("**الإجابات المضافة:**")
+                for idx, ans in enumerate(st.session_state["answers"]):
+                    col_ans1, col_ans2 = st.columns([4, 1])
+                    with col_ans1:
+                        st.write(f"{idx+1}. {ans['answer_text']} - {ans['score']} نقطة")
+                    with col_ans2:
+                        if st.button("حذف", key=f"delete_ans_{idx}"):
+                            st.session_state["answers"].pop(idx)
+                            st.experimental_rerun()
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                if st.button("السابق"):
+                    st.session_state["current_step"] = 2
                     st.experimental_rerun()
-                except Exception as e:
-                    st.error(f"❌ حدث خطأ أثناء حفظ البيانات: {e}")
+            with col3:
+                if st.button("حفظ السؤال"):
+                    if not st.session_state["answers"]:
+                        st.error("❌ يجب إضافة إجابة واحدة على الأقل")
+                    else:
+                        try:
+                            mapping = {
+                                "خيار واحد (radio)": "radio",
+                                "خيارات متعددة (checkbox)": "checkbox",
+                                "نص مفتوح (text)": "text",
+                                "قائمة منسدلة (select)": "select"
+                            }
+                            db_input_type = mapping[selected_type]
+                            insert_template_query = """
+                                INSERT INTO self_assessment_templates (level, question, input_type)
+                                VALUES (%s, %s, %s)
+                            """
+                            cursor.execute(insert_template_query, (st.session_state["selected_level"], question_text, db_input_type))
+                            conn.commit()
+                            template_id = cursor.lastrowid
+                            
+                            insert_option_query = """
+                                INSERT INTO self_assessment_options (question_id, option_text, score)
+                                VALUES (%s, %s, %s)
+                            """
+                            for ans in st.session_state["answers"]:
+                                cursor.execute(insert_option_query, (template_id, ans["answer_text"], ans["score"]))
+                            conn.commit()
+                            st.success("✅ تم حفظ السؤال والإجابات بنجاح")
+                            st.session_state["current_step"] = 0
+                            st.session_state["answers"] = []
+                            st.experimental_rerun()
+                        except Exception as e:
+                            st.error(f"❌ حدث خطأ أثناء حفظ البيانات: {e}")
 # ========== التبويب الثالث: نقاطي ==========
 elif selected_tab == "نقاطي (تقييم من المشرف)":
     st.header("🏅 إعداد بنود تقييم من المشرف")
