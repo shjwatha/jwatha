@@ -1,15 +1,21 @@
 import streamlit as st
 import pymysql
 
-# إعداد الاتصال بقاعدة البيانات
-def get_connection():
-    return pymysql.connect(
-        host="localhost",     # غيّرها حسب الإعداد
-        user="your_user",     # اسم المستخدم
-        password="your_pass", # كلمة المرور
-        database="zad_DB",    # اسم قاعدة البيانات
-        charset="utf8mb4"
+# الاتصال بقاعدة بيانات MySQL
+try:
+    conn = pymysql.connect(
+        host=st.secrets["DB_HOST"],
+        port=int(st.secrets["DB_PORT"]),
+        user=st.secrets["DB_USER"],
+        password=st.secrets["DB_PASSWORD"],
+        database=st.secrets["DB_NAME"],
+        charset='utf8mb4'
     )
+    cursor = conn.cursor(pymysql.cursors.DictCursor)
+except Exception as e:
+    st.error(f"❌ فشل الاتصال بقاعدة البيانات: {e}")
+    st.stop()
+
 
 st.set_page_config(page_title="تحديث البنود المشوهة", layout="centered")
 st.title("🛠️ تصحيح البنود المشوهة - self_assessment_options")
