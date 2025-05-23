@@ -197,21 +197,18 @@ with tabs[0]:
 
 
 
-# ===================== تبويب 2: المحادثات =====================
 with tabs[1]:
     st.subheader("💬 المحادثة مع المشرف")
 
     options = []
 
     try:
-        # جلب المشرف المباشر للمستخدم
         cursor.execute("SELECT mentor FROM users WHERE username = %s AND is_deleted = FALSE", (username,))
         user_row = cursor.fetchone()
         if user_row and user_row["mentor"]:
             mentor_1 = user_row["mentor"]
             options.append(mentor_1)
 
-            # جلب مشرف المشرف
             cursor.execute("SELECT mentor FROM users WHERE username = %s AND is_deleted = FALSE", (mentor_1,))
             super_row = cursor.fetchone()
             if super_row and super_row["mentor"]:
@@ -231,7 +228,6 @@ with tabs[1]:
             chat_df = pd.DataFrame()
 
         if not chat_df.empty:
-            # تحديث الرسائل غير المقروءة
             unread = chat_df[
                 (chat_df["sender"] == selected_mentor) &
                 (chat_df["receiver"] == username) &
@@ -241,7 +237,6 @@ with tabs[1]:
                 cursor.execute("UPDATE chat_messages SET read_by_receiver = 1 WHERE id = %s", (msg["id"],))
             conn.commit()
 
-            # عرض الرسائل
             msgs = chat_df[
                 ((chat_df["sender"] == username) & (chat_df["receiver"] == selected_mentor)) |
                 ((chat_df["sender"] == selected_mentor) & (chat_df["receiver"] == username))
@@ -251,20 +246,32 @@ with tabs[1]:
                 sender_label = "أنت" if msg["sender"] == username else msg["sender"]
                 color = "#8B0000" if msg["sender"] == username else "#000080"
 
-                # حالة القراءة فقط للرسائل التي أرسلها المستخدم
+                # ✅ عرض رمز الحالة فقط لرسائل المستخدم
                 if msg["sender"] == username:
                     check_icon = "✅" if msg["read_by_receiver"] == 1 else "☑️"
                 else:
                     check_icon = ""
 
+                # ✅ تنسيق التاريخ والوقت
+                ts = msg["timestamp"]
+                if isinstance(ts, str):
+                    ts = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                time_str = ts.strftime("%I:%M %p - %Y/%m/%d").replace("AM", "صباحًا").replace("PM", "مساءً")
+
+                # ✅ عرض الرسالة + الوقت + رمز القراءة
                 st.markdown(
-                    f"<p style='color:{color};'><b>{sender_label}:</b> {msg['message']} <span style='float:left;'>{check_icon}</span></p>",
+                    f"""
+                    <div style='color:{color}; margin-bottom:2px;'>
+                        <b>{sender_label}:</b> {msg['message']} <span style='float:left;'>{check_icon}</span>
+                        <br><span style='font-size:11px; color:gray;'>{time_str}</span>
+                    </div>
+                    """,
                     unsafe_allow_html=True
                 )
         else:
             st.info("💬 لا توجد رسائل بعد.")
 
-        # حقل الإدخال مع تفريغ تلقائي
+        # ✅ حقل الكتابة
         new_msg = st.text_area("✏️ اكتب رسالتك", height=100, key="new_msg")
         if st.button("📨 إرسال الرسالة"):
             if new_msg.strip():
@@ -276,7 +283,7 @@ with tabs[1]:
                     )
                     conn.commit()
                     st.success("✅ تم إرسال الرسالة")
-                    st.session_state["new_msg"] = ""  # تفريغ حقل الإدخال
+                    st.session_state.update({"new_msg": ""})
                     st.rerun()
                 except Exception as e:
                     st.error(f"❌ فشل الإرسال: {e}")
