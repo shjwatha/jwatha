@@ -169,21 +169,28 @@ with tabs[0]:
 with tabs[1]:
     st.subheader("💬 المحادثة مع المشرف")
 
-    # جلب كل المشرفين والسوبر مشرفين النشطين (باستثناء المستخدم نفسه)
+    options = []
+
     try:
-        cursor.execute("""
-            SELECT username 
-            FROM users 
-            WHERE permissions IN ('supervisor', 'superadmin') AND is_deleted = FALSE
-        """)
-        result = cursor.fetchall()
-        options = [row["username"] for row in result if row["username"] != username]
+        # جلب مشرف المستخدم
+        cursor.execute("SELECT mentor FROM users WHERE username = %s AND is_deleted = FALSE", (username,))
+        mentor_row = cursor.fetchone()
+        if mentor_row and mentor_row["mentor"]:
+            mentor_name = mentor_row["mentor"]
+            options.append(mentor_name)
+
+            # جلب مشرف المشرف (السوبر مشرف)
+            cursor.execute("SELECT mentor FROM users WHERE username = %s AND is_deleted = FALSE", (mentor_name,))
+            super_row = cursor.fetchone()
+            if super_row and super_row["mentor"]:
+                super_mentor = super_row["mentor"]
+                if super_mentor not in options:
+                    options.append(super_mentor)
     except Exception as e:
         st.error(f"❌ فشل تحميل قائمة المشرفين: {e}")
-        options = []
 
     selected_mentor = st.selectbox("اختر الشخص للمراسلة", ["اختر الشخص"] + options)
-    
+
     if selected_mentor != "اختر الشخص":
         try:
             chat_df = pd.read_sql("SELECT * FROM chat_messages", conn)
@@ -192,7 +199,6 @@ with tabs[1]:
             chat_df = pd.DataFrame()
 
         if not chat_df.empty:
-            # تحديد الرسائل غير المقروءة وتحديثها كمقروءة
             unread = chat_df[
                 (chat_df["sender"] == selected_mentor) &
                 (chat_df["receiver"] == username) &
@@ -202,7 +208,6 @@ with tabs[1]:
                 cursor.execute("UPDATE chat_messages SET read_by_receiver = 1 WHERE id = %s", (msg["id"],))
                 conn.commit()
 
-            # عرض المحادثات بين المستخدم والشخص المختار
             msgs = chat_df[
                 ((chat_df["sender"] == username) & (chat_df["receiver"] == selected_mentor)) |
                 ((chat_df["sender"] == selected_mentor) & (chat_df["receiver"] == username))
