@@ -64,19 +64,19 @@ tabs = st.tabs([
 
 
 # ===================== تبويب 1: إدخال البيانات (نموذج ديناميكي من قاعدة البيانات) =====================
+# ===================== تبويب 1: إدخال البيانات (نموذج ديناميكي من قاعدة البيانات) =====================
+# جلب المستوى الحالي للمستخدم
+try:
+    cursor.execute("SELECT level FROM users WHERE username = %s AND is_deleted = FALSE", (username,))
+    level_row = cursor.fetchone()
+    user_level = level_row["level"] if level_row else "غير معروف"
+except Exception as e:
+    st.error(f"❗️ فشل في جلب مستوى المستخدم: {e}")
+    user_level = "غير معروف"
+
 with tabs[0]:
     st.markdown(f"<h3 style='color:#0000FF; font-weight:bold;'>👋 أهلاً {username} | مجموعتك: {mentor_name} | مستواك: {user_level}</h3>", unsafe_allow_html=True)
-
     st.markdown("<h4 style='color:#0000FF; font-weight:bold;'>📝 المحاسبة الذاتية اليومية (نموذج مخصص)</h4>", unsafe_allow_html=True)
-
-    # جلب المستوى الحالي للمستخدم
-    try:
-        cursor.execute("SELECT level FROM users WHERE username = %s AND is_deleted = FALSE", (username,))
-        level_row = cursor.fetchone()
-        user_level = level_row["level"] if level_row else None
-    except Exception as e:
-        st.error(f"❌ فشل في جلب مستوى المستخدم: {e}")
-        user_level = None
 
     with st.form("dynamic_evaluation_form"):
         today = datetime.today().date()
@@ -97,7 +97,7 @@ with tabs[0]:
         selected_date = dict(hijri_dates)[selected_label]
         eval_date_str = selected_date.strftime("%Y-%m-%d")
 
-        # جلب البنود والأسئلة من قاعدة البيانات بحسب المستوى
+        # جلب البنود من قاعدة البيانات حسب مستوى المستخدم
         try:
             cursor.execute(
                 "SELECT id, question FROM self_assessment_templates WHERE is_deleted = 0 AND level = %s ORDER BY id ASC",
@@ -105,7 +105,7 @@ with tabs[0]:
             )
             templates = cursor.fetchall()
         except Exception as e:
-            st.error(f"❌ فشل في تحميل البنود: {e}")
+            st.error(f"❗️ فشل في تحميل البنود: {e}")
             templates = []
 
         responses = []
@@ -127,11 +127,11 @@ with tabs[0]:
                     else:
                         st.warning(f"⚠️ لا توجد خيارات للبند: {t_title}")
                 except Exception as e:
-                    st.error(f"❌ خطأ أثناء تحميل خيارات البند '{t_title}': {e}")
+                    st.error(f"❗️ خطأ أثناء تحميل خيارات البند '{t_title}': {e}")
         else:
-            st.info("ℹ️ لا توجد بنود نشطة حالياً لهذا المستوى. تأكد أن المشرف العام أعدّ النموذج.")
+            st.info("ℹ️ لا توجد بنود نشطة لهذا المستوى. تأكد أن المشرف العام أعدّ النموذج.")
 
-        if st.form_submit_button("💾 حفظ"):
+        if st.form_submit_button("📏 حفظ"):
             if responses:
                 try:
                     cursor.execute(
@@ -147,11 +147,9 @@ with tabs[0]:
                     st.success("✅ تم حفظ التقييم بنجاح.")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"❌ خطأ أثناء حفظ البيانات: {e}")
+                    st.error(f"❗️ خطأ أثناء حفظ البيانات: {e}")
             else:
                 st.warning("⚠️ لا توجد إجابات لحفظها.")
-
-
 # ===================== تبويب 2: المحادثات =====================
 with tabs[1]:
     st.subheader("💬 المحادثة مع المشرف")
