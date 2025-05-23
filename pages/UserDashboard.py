@@ -169,13 +169,21 @@ with tabs[0]:
 with tabs[1]:
     st.subheader("💬 المحادثة مع المشرف")
 
-    options = [mentor_name]
-    cursor.execute("SELECT mentor FROM users WHERE username = %s", (mentor_name,))
-    sp = cursor.fetchone()
-    if sp and sp["mentor"]:
-        options.append(sp["mentor"])
+    # جلب كل المشرفين والسوبر مشرفين النشطين (باستثناء المستخدم نفسه)
+    try:
+        cursor.execute("""
+            SELECT username 
+            FROM users 
+            WHERE permissions IN ('supervisor', 'superadmin') AND is_deleted = FALSE
+        """)
+        result = cursor.fetchall()
+        options = [row["username"] for row in result if row["username"] != username]
+    except Exception as e:
+        st.error(f"❌ فشل تحميل قائمة المشرفين: {e}")
+        options = []
 
     selected_mentor = st.selectbox("اختر الشخص للمراسلة", ["اختر الشخص"] + options)
+    
     if selected_mentor != "اختر الشخص":
         try:
             chat_df = pd.read_sql("SELECT * FROM chat_messages", conn)
@@ -184,6 +192,7 @@ with tabs[1]:
             chat_df = pd.DataFrame()
 
         if not chat_df.empty:
+            # تحديد الرسائل غير المقروءة وتحديثها كمقروءة
             unread = chat_df[
                 (chat_df["sender"] == selected_mentor) &
                 (chat_df["receiver"] == username) &
@@ -193,6 +202,7 @@ with tabs[1]:
                 cursor.execute("UPDATE chat_messages SET read_by_receiver = 1 WHERE id = %s", (msg["id"],))
                 conn.commit()
 
+            # عرض المحادثات بين المستخدم والشخص المختار
             msgs = chat_df[
                 ((chat_df["sender"] == username) & (chat_df["receiver"] == selected_mentor)) |
                 ((chat_df["sender"] == selected_mentor) & (chat_df["receiver"] == username))
@@ -216,8 +226,7 @@ with tabs[1]:
                     )
                     conn.commit()
                     st.success("✅ تم إرسال الرسالة")
-                    st.rerun()
-
+                    st.experimental_rerun()
                 except Exception as e:
                     st.error(f"❌ فشل الإرسال: {e}")
             else:
