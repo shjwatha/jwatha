@@ -83,29 +83,22 @@ except Exception as e:
     st.error(f"❌ حدث خطأ أثناء تحميل تقارير الأداء: {e}")
     merged_df = pd.DataFrame()
 
-# ===== التحقق من الرسائل غير المقروءة =====
+# ===== إشعار toast لوجود رسائل غير مقروءة =====
 try:
     cursor.execute("""
-        SELECT COUNT(*) as unread_count 
+        SELECT DISTINCT sender 
         FROM chat_messages 
         WHERE receiver = %s AND read_by_receiver = 0
     """, (username,))
-    unread_row = cursor.fetchone()
-    unread_count = unread_row["unread_count"] if unread_row else 0
+    senders = [row["sender"] for row in cursor.fetchall()]
+    unread_count = len(senders)
 except Exception as e:
+    senders = []
     unread_count = 0
 
-# تهيئة التبويب الحالي إن لم يكن موجود
-if "selected_tab_index" not in st.session_state:
-    st.session_state["selected_tab_index"] = 0  # تبويب 0: تقرير إجمالي
-
-# ===== إشعار منبثق وإشعار دائم =====
-if unread_count > 0 and st.session_state["selected_tab_index"] != 1:
-    st.toast(f"📨 لديك {unread_count} رسالة جديدة غير مقروءة!", icon="📬")
-    st.warning(f"📬 لديك {unread_count} رسالة جديدة غير مقروءة في تبويب المحادثات.")
-    if st.button("🔁 الانتقال إلى المحادثات"):
-        st.session_state["selected_tab_index"] = 1  # تبويب المحادثات
-        st.rerun()
+if unread_count > 0:
+    sender_names = " - ".join(senders)
+    st.toast(f"🔴 لديك {unread_count} رسائل جديدة من: {sender_names}", icon="🔴")
 
 # ===== التبويبات =====
 tabs = st.tabs([
