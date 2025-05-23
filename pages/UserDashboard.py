@@ -259,12 +259,37 @@ with tabs[1]:
 # ===================== تبويب 3: تقارير المجموع =====================
 with tabs[2]:
     st.subheader("📊 تقارير الأداء خلال فترة")
+
     col1, col2 = st.columns(2)
     with col1:
         start_date = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7))
     with col2:
         end_date = st.date_input("إلى تاريخ", datetime.today().date())
 
+    # اختيار النموذج
+    try:
+        cursor.execute("""
+            SELECT DISTINCT form_name 
+            FROM self_assessment_templates 
+            WHERE is_deleted = 0 AND level = %s
+        """, (user_level,))
+        form_rows = cursor.fetchall()
+        available_forms = [row["form_name"] for row in form_rows if row["form_name"]]
+    except Exception as e:
+        st.error(f"❗️ فشل في تحميل النماذج: {e}")
+        available_forms = []
+
+    if not available_forms:
+        st.warning("⚠️ لا توجد نماذج متاحة.")
+        st.stop()
+
+    if len(available_forms) == 1:
+        selected_form = available_forms[0]
+        st.info(f"📄 النموذج المختار تلقائيًا: {selected_form}")
+    else:
+        selected_form = st.selectbox("📄 اختر النموذج", available_forms, key="selected_form_report")
+
+    # تحميل التقييمات
     try:
         df = pd.read_sql("""
             SELECT DATE(timestamp) AS التاريخ, question AS البند, score AS الدرجة
@@ -276,13 +301,42 @@ with tabs[2]:
         st.error(f"❌ فشل في تحميل التقارير: {e}")
         df = pd.DataFrame()
 
-    if not df.empty:
-        summary = df.groupby(["التاريخ", "البند"]).sum().reset_index()
-        pivoted = summary.pivot(index="التاريخ", columns="البند", values="الدرجة").fillna(0)
-        st.dataframe(pivoted, use_container_width=True)
-    else:
-        st.info("ℹ️ لا توجد بيانات في الفترة المحددة.")
+    # تصفية البنود الخاصة بالنموذج المحدد
+    try:
+        cursor.execute("""
+            SELECT question, input_type 
+            FROM self_assessment_templates 
+            WHERE level = %s AND form_name = %s AND is_deleted = 0
+        """, (user_level, selected_form))
+        qrows = cursor.fetchall()
+        form_questions = [row["question"] for row in qrows]
+        text_questions = [row["question"] for row in qrows if row["input_type"] == "text"]
+    except Exception as e:
+        st.error(f"❗️ فشل في جلب بنود النموذج: {e}")
+        form_questions = []
+        text_questions = []
 
+    if not df.empty and form_questions:
+        df = df[df["البند"].isin(form_questions)]
+
+        # تقسيم بين الأسئلة النصية وغيرها
+        df_text = df[df["البند"].isin(text_questions)]
+        df_scored = df[~df["البند"].isin(text_questions)]
+
+        # عرض الأسئلة بدرجات
+        if not df_scored.empty:
+            summary = df_scored.groupby(["التاريخ", "البند"]).sum().reset_index()
+            pivoted = summary.pivot(index="التاريخ", columns="البند", values="الدرجة").fillna(0)
+            st.markdown("### 📈 تقييم البنود القابلة للتقدير")
+            st.dataframe(pivoted, use_container_width=True)
+
+        # عرض الأسئلة النصية
+        if not df_text.empty:
+            st.markdown("### 📝 البنود النصية")
+            st.dataframe(df_text[["التاريخ", "البند"]], use_container_width=True)
+
+    else:
+        st.info("ℹ️ لا توجد بيانات في الفترة المحددة أو لهذا النموذج.")
 # ===================== تبويب 4: الإنجازات =====================
 with tabs[3]:
     st.subheader("🏆 إنجازاتي")
