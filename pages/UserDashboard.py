@@ -88,43 +88,44 @@ with tabs[0]:
     st.markdown(f"<h3 style='color:#0000FF; font-weight:bold;'>👋 أهلاً {username} | مجموعتك: {mentor_name} | مستواك: {user_level}</h3>", unsafe_allow_html=True)
     st.markdown("<h4 style='color:#0000FF; font-weight:bold;'>📝 المحاسبة الذاتية اليومية (نموذج مخصص)</h4>", unsafe_allow_html=True)
 
+    today = datetime.today().date()
+    hijri_dates = []
+    for i in range(7):
+        g_date = today - timedelta(days=i)
+        weekday = g_date.strftime("%A")
+        arabic_weekday = {
+            "Saturday": "السبت", "Sunday": "الأحد", "Monday": "الاثنين",
+            "Tuesday": "الثلاثاء", "Wednesday": "الأربعاء",
+            "Thursday": "الخميس", "Friday": "الجمعة"
+        }[weekday]
+        label = f"{arabic_weekday} - {g_date.day}/{g_date.month}/{g_date.year}"
+        hijri_dates.append((label, g_date))
+    hijri_labels = [label for label, _ in hijri_dates]
+    selected_label = st.selectbox("📅 اختر التاريخ", hijri_labels)
+    selected_date = dict(hijri_dates)[selected_label]
+    eval_date_str = selected_date.strftime("%Y-%m-%d")
+
+    # اختيار النموذج المتاح للمستوى
+    try:
+        cursor.execute("SELECT DISTINCT form_name FROM self_assessment_templates WHERE is_deleted = 0 AND level = %s", (user_level,))
+        form_rows = cursor.fetchall()
+        available_forms = [row["form_name"] for row in form_rows if row["form_name"]]
+    except Exception as e:
+        st.error(f"❗️ فشل في تحميل النماذج: {e}")
+        available_forms = []
+
+    if not available_forms:
+        st.info("ℹ️ لا توجد نماذج تقييم متاحة لهذا المستوى.")
+        st.stop()
+
+    if len(available_forms) == 1:
+        selected_form = available_forms[0]
+        st.info(f"📄 النموذج المختار تلقائيًا: {selected_form}")
+    else:
+        selected_form = st.selectbox("📄 اختر النموذج", available_forms, key="selected_form")
+        st.experimental_rerun()
+
     with st.form("dynamic_evaluation_form"):
-        today = datetime.today().date()
-        hijri_dates = []
-        for i in range(7):
-            g_date = today - timedelta(days=i)
-            weekday = g_date.strftime("%A")
-            arabic_weekday = {
-                "Saturday": "السبت", "Sunday": "الأحد", "Monday": "الاثنين",
-                "Tuesday": "الثلاثاء", "Wednesday": "الأربعاء",
-                "Thursday": "الخميس", "Friday": "الجمعة"
-            }[weekday]
-            label = f"{arabic_weekday} - {g_date.day}/{g_date.month}/{g_date.year}"
-            hijri_dates.append((label, g_date))
-        hijri_labels = [label for label, _ in hijri_dates]
-        selected_label = st.selectbox("📅 اختر التاريخ", hijri_labels)
-        selected_date = dict(hijri_dates)[selected_label]
-        eval_date_str = selected_date.strftime("%Y-%m-%d")
-
-        # اختيار النموذج المتاح للمستوى
-        try:
-            cursor.execute("SELECT DISTINCT form_name FROM self_assessment_templates WHERE is_deleted = 0 AND level = %s", (user_level,))
-            form_rows = cursor.fetchall()
-            available_forms = [row["form_name"] for row in form_rows if row["form_name"]]
-        except Exception as e:
-            st.error(f"❗️ فشل في تحميل النماذج: {e}")
-            available_forms = []
-
-        if not available_forms:
-            st.info("ℹ️ لا توجد نماذج تقييم متاحة لهذا المستوى.")
-            st.stop()
-
-        if len(available_forms) == 1:
-            selected_form = available_forms[0]
-            st.info(f"📄 النموذج المختار تلقائيًا: {selected_form}")
-        else:
-            selected_form = st.selectbox("📄 اختر النموذج", available_forms)
-
         try:
             cursor.execute("SELECT id, question, input_type FROM self_assessment_templates WHERE is_deleted = 0 AND level = %s AND form_name = %s ORDER BY id ASC", (user_level, selected_form))
             templates = cursor.fetchall()
