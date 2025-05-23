@@ -201,21 +201,20 @@ with tabs[1]:
     options = []
 
     try:
-        # الخطوة 1: جلب المشرف المباشر للمستخدم
+        # جلب المشرف المباشر للمستخدم
         cursor.execute("SELECT mentor FROM users WHERE username = %s AND is_deleted = FALSE", (username,))
         user_row = cursor.fetchone()
         if user_row and user_row["mentor"]:
             mentor_1 = user_row["mentor"]
             options.append(mentor_1)
 
-            # الخطوة 2: جلب مشرف المشرف (السوبر مشرف)
+            # جلب مشرف المشرف
             cursor.execute("SELECT mentor FROM users WHERE username = %s AND is_deleted = FALSE", (mentor_1,))
             super_row = cursor.fetchone()
             if super_row and super_row["mentor"]:
                 mentor_2 = super_row["mentor"]
                 if mentor_2 not in options:
                     options.append(mentor_2)
-
     except Exception as e:
         st.error(f"❌ فشل تحميل قائمة المشرفين: {e}")
 
@@ -229,7 +228,7 @@ with tabs[1]:
             chat_df = pd.DataFrame()
 
         if not chat_df.empty:
-            # تحديث الرسائل غير المقروءة كمقروءة
+            # تحديث الرسائل غير المقروءة
             unread = chat_df[
                 (chat_df["sender"] == selected_mentor) &
                 (chat_df["receiver"] == username) &
@@ -248,8 +247,17 @@ with tabs[1]:
             for _, msg in msgs.iterrows():
                 sender_label = "أنت" if msg["sender"] == username else msg["sender"]
                 color = "#8B0000" if msg["sender"] == username else "#000080"
-                check_icon = "✅" if msg["read_by_receiver"] == 1 else "☑️"
-                st.markdown(f"<p style='color:{color};'><b>{sender_label}:</b> {msg['message']} <span style='float:left;'>{check_icon}</span></p>", unsafe_allow_html=True)
+
+                # عرض حالة القراءة فقط إذا كانت الرسالة من المستخدم الحالي
+                if msg["sender"] == username:
+                    check_icon = "✅" if msg["read_by_receiver"] == 1 else "☑️"
+                else:
+                    check_icon = ""
+
+                st.markdown(
+                    f"<p style='color:{color};'><b>{sender_label}:</b> {msg['message']} <span style='float:left;'>{check_icon}</span></p>",
+                    unsafe_allow_html=True
+                )
         else:
             st.info("💬 لا توجد رسائل بعد.")
 
@@ -261,7 +269,7 @@ with tabs[1]:
                 try:
                     cursor.execute(
                         "INSERT INTO chat_messages (timestamp, sender, receiver, message, read_by_receiver) VALUES (%s, %s, %s, %s, %s)",
-                        (ts, username, selected_mentor, new_msg, 0)
+                        (ts, username, selected_mentor, new_msg.strip(), 0)
                     )
                     conn.commit()
                     st.success("✅ تم إرسال الرسالة")
@@ -270,6 +278,10 @@ with tabs[1]:
                     st.error(f"❌ فشل الإرسال: {e}")
             else:
                 st.warning("⚠️ لا يمكن إرسال رسالة فارغة.")
+
+
+
+
 # ===================== تبويب 3: تقارير المجموع =====================
 
 with tabs[2]:
