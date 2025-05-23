@@ -69,14 +69,12 @@ else:
 
 # تحميل الطلاب المرتبطين بالمشرف أو السوبر مشرف (حسب المستوى أيضاً)
 my_users = []
-
 for supervisor in ([username] + my_supervisors):
     cursor.execute("""
         SELECT username FROM users 
         WHERE role = 'user' AND mentor = %s AND is_deleted = FALSE AND level = %s
     """, (supervisor, my_level))
     my_users += [row["username"] for row in cursor.fetchall()]
-
 all_user_options += [(u, "مستخدم") for u in my_users]
 
 # تحميل تقارير الأداء
@@ -86,7 +84,30 @@ except Exception as e:
     st.error(f"❌ حدث خطأ أثناء تحميل تقارير الأداء: {e}")
     merged_df = pd.DataFrame()
 
-# التبويبات
+# ===== إشعار بالرسائل غير المقروءة قبل عرض التبويبات =====
+try:
+    cursor.execute("""
+        SELECT COUNT(*) as unread_count 
+        FROM chat_messages 
+        WHERE receiver = %s AND read_by_receiver = 0
+    """, (username,))
+    unread_row = cursor.fetchone()
+    unread_count = unread_row["unread_count"] if unread_row else 0
+except Exception as e:
+    unread_count = 0
+
+# تهيئة التبويب الحالي في session_state
+if "selected_tab_index" not in st.session_state:
+    st.session_state["selected_tab_index"] = 0  # التبويب الأول (تقرير إجمالي)
+
+# إشعار إذا كان هناك رسائل جديدة
+if unread_count > 0 and st.session_state["selected_tab_index"] != 1:
+    st.warning(f"📬 لديك {unread_count} رسالة جديدة غير مقروءة في تبويب المحادثات.")
+    if st.button("🔁 الانتقال إلى تبويب المحادثات"):
+        st.session_state["selected_tab_index"] = 1
+        st.rerun()
+
+# ===== التبويبات =====
 tabs = st.tabs([
     "تقرير إجمالي", 
     "💬 المحادثات", 
