@@ -73,9 +73,9 @@ if unread_senders:
     names_str = " - ".join(unread_senders)
     st.markdown(
         f"""
-        <p style='color:red; font-weight:bold; font-size:16px; margin-bottom: 20px;'>
-            📨 لديك رسائل جديدة من: {names_str}
-        </p>
+        <div style='background-color:#FFF4CC; padding:12px; border-radius:6px; border:1px solid #FFD700; margin-bottom: 20px;'>
+            <span style='color:red; font-weight:bold; font-size:16px;'>📨 لديك رسائل جديدة من: {names_str}</span>
+        </div>
         """,
         unsafe_allow_html=True
     )
