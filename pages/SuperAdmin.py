@@ -195,151 +195,73 @@ if selected_tab == "إدارة الأعضاء":
                     st.success("✅ تم إضافة المشرف")
                     st.rerun()
 # ========== التبويب الثاني: إعداد نموذج التقييم الذاتي ==========
-elif selected_tab == "إعداد نموذج التقييم الذاتي":
-    st.header("📝 إعداد نموذج التقييم الذاتي")
+# ===================== تبويب 2: إنشاء استمارة التقييم الذاتي =====================
+with tabs[1]:
+    st.subheader("📝 إنشاء استمارة التقييم الذاتي")
 
-    st.subheader("➕ إضافة بند تقييم")
+    # اختيار المستوى
+    cursor.execute("SELECT DISTINCT level_name FROM levels")
+    levels = [row["level_name"] for row in cursor.fetchall()]
+    selected_level = st.selectbox("📚 اختر المستوى", levels)
 
-    with st.form("add_criterion"):
-        level = st.selectbox("اختر المستوى", [lvl['level_name'] for lvl in levels], key="assessment_level")
-        question = st.text_input("عنوان البند (السؤال)")
-        input_type = st.selectbox("نوع الإجابة", ["اختيار واحد", "اختيار متعدد"])
-        submitted_q = st.form_submit_button("➕ أضف البند")
+    # إدخال بيانات السؤال
+    question_text = st.text_input("🧾 نص السؤال")
 
-        if submitted_q and question:
+    input_type = st.selectbox("🛠️ نوع السؤال", [
+        "radio - اختيار واحد",
+        "checkbox - اختيارات متعددة",
+        "text - نص مفتوح",
+        "select - قائمة منسدلة"
+    ])
+
+    input_map = {
+        "radio - اختيار واحد": "radio",
+        "checkbox - اختيارات متعددة": "checkbox",
+        "text - نص مفتوح": "text",
+        "select - قائمة منسدلة": "select"
+    }
+    selected_input_type = input_map[input_type]
+
+    # خيارات للإدخال إن كان نوعه radio أو checkbox أو select
+    options = []
+    if selected_input_type in ["radio", "checkbox", "select"]:
+        st.markdown("🔢 أدخل الخيارات مع الدرجة لكل منها:")
+        num_options = st.number_input("كم عدد الخيارات؟", min_value=2, max_value=10, step=1, key="opt_count")
+        for i in range(int(num_options)):
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                opt_text = st.text_input(f"📝 الخيار {i+1}", key=f"opt_text_{i}")
+            with col2:
+                opt_score = st.number_input(f"الدرجة {i+1}", min_value=0, max_value=100, step=1, key=f"opt_score_{i}")
+            options.append((opt_text, opt_score))
+
+    if st.button("💾 حفظ السؤال"):
+        if not question_text.strip():
+            st.warning("⚠️ الرجاء إدخال نص السؤال.")
+        elif selected_input_type in ["radio", "checkbox", "select"] and any(not o[0].strip() for o in options):
+            st.warning("⚠️ جميع الخيارات يجب أن تحتوي على نص.")
+        else:
             try:
-                # الاستعلام لإضافة البند
-                insert_query = "INSERT INTO self_assessment_templates (question, input_type, level) VALUES (%s, %s, %s)"
-                print(f"الاستعلام: {insert_query} | القيم: {(question, input_type, level)}")  # طباعة الاستعلام
-                cursor.execute(insert_query, (question, input_type, level))
-                conn.commit()  # تأكيد التغييرات
-                st.success("✅ تم إضافة البند")
+                # إدخال السؤال في جدول templates
+                cursor.execute(
+                    "INSERT INTO self_assessment_templates (question, input_type, level, is_deleted) VALUES (%s, %s, %s, 0)",
+                    (question_text, selected_input_type, selected_level)
+                )
+                conn.commit()
+                template_id = cursor.lastrowid
 
-                # التأكد من أن commit تم بنجاح
-                print(f"تم تنفيذ الاستعلام بنجاح: {insert_query}")
-
-                # جلب البيانات المحدثة من قاعدة البيانات
-                cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (level,))
-                questions = cursor.fetchall()
-
-                # طباعة الأسئلة المحدثة
-                print(f"الأسئلة المحدثة بعد الإدخال: {questions}")
-
-                # تخزين البيانات في الجلسة
-                st.session_state.questions = questions
-
+                # إدخال الخيارات في جدول options
+                if selected_input_type in ["radio", "checkbox", "select"]:
+                    for opt_text, opt_score in options:
+                        cursor.execute(
+                            "INSERT INTO self_assessment_options (question_id, option_text, score, is_deleted) VALUES (%s, %s, %s, 0)",
+                            (template_id, opt_text.strip(), opt_score)
+                        )
+                conn.commit()
+                st.success("✅ تم حفظ السؤال والخيارات بنجاح.")
+                st.experimental_rerun()
             except Exception as e:
-                st.error(f"❌ حدث خطأ أثناء إضافة البند: {e}")
-                print(f"خطأ أثناء إضافة البند: {e}")
-
-    st.subheader("🧩 البنود الحالية حسب المستوى")
-    selected_template_level = st.selectbox("اختر المستوى لعرض البنود", [lvl['level_name'] for lvl in levels], key="template_view_level")
-
-    cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (selected_template_level,))
-    questions = cursor.fetchall()
-
-    # حفظ البنود في الجلسة
-    st.session_state.questions = questions
-
-    if questions:
-        for q in questions:
-            with st.expander(f"{q['question']} ({q['input_type']})"):
-                col1, col2 = st.columns([1, 1])
-                # نموذج خاص بتعديل البند لضمان عدم ضياع حالة الإدخال عند إعادة تشغيل السكريبت
-                with col1:
-                    with st.form(key=f"edit_form_{q['id']}"):
-                        input_type_options = ["اختيار واحد", "اختيار متعدد"]
-                        new_input_type_index = input_type_options.index(q['input_type']) if q['input_type'] in input_type_options else 0
-                        new_question = st.text_input(f"عنوان البند {q['id']}", value=q['question'], key=f"edit_q_text_input_{q['id']}")
-                        new_input_type = st.selectbox("نوع الإجابة", input_type_options, index=new_input_type_index, key=f"edit_q_input_type_{q['id']}")
-                        submitted_edit = st.form_submit_button(f"تحديث البند {q['id']}")
-                        if submitted_edit:
-                            try:
-                                update_query = "UPDATE self_assessment_templates SET question = %s, input_type = %s WHERE id = %s"
-                                print(f"الاستعلام: {update_query} | القيم: {(new_question, new_input_type, q['id'])}")  # طباعة الاستعلام
-                                cursor.execute(update_query, (new_question, new_input_type, q["id"]))
-                                conn.commit()
-                                st.success("✅ تم التحديث")
-
-                                # التأكد من أن commit تم بنجاح
-                                print(f"تم تنفيذ الاستعلام بنجاح: {update_query}")
-
-                                cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (selected_template_level,))
-                                questions = cursor.fetchall()
-                                st.session_state.questions = questions
-
-                            except Exception as e:
-                                st.error(f"❌ حدث خطأ أثناء التحديث: {e}")
-                                print(f"خطأ أثناء التحديث: {e}")
-
-                with col2:
-                    if st.button(f"🗑️ حذف البند {q['id']}", key=f"delete_q_button_{q['id']}"):
-                        try:
-                            delete_query = "UPDATE self_assessment_templates SET is_deleted = TRUE WHERE id = %s"
-                            print(f"الاستعلام: {delete_query} | القيم: {(q['id'],)}")  # طباعة الاستعلام
-                            cursor.execute(delete_query, (q["id"],))
-                            conn.commit()
-                            st.success("✅ تم حذف البند")
-
-                            # التأكد من أن commit تم بنجاح
-                            print(f"تم تنفيذ الاستعلام بنجاح: {delete_query}")
-
-                            cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (selected_template_level,))
-                            questions = cursor.fetchall()
-                            st.session_state.questions = questions
-
-                        except Exception as e:
-                            st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
-                            print(f"خطأ أثناء الحذف: {e}")
-
-                cursor.execute("SELECT * FROM self_assessment_options WHERE question_id = %s", (q["id"],))
-                options = cursor.fetchall()
-                for opt in options:
-                    col3, col4 = st.columns([4, 1])
-                    with col3:
-                        st.markdown(f"🔘 {opt['option_text']} - {opt['score']} نقطة")
-                    with col4:
-                        if st.button("🗑️ حذف الخيار", key=f"delete_opt_button_{opt['id']}"):
-                            try:
-                                delete_opt_query = "DELETE FROM self_assessment_options WHERE id = %s"
-                                print(f"الاستعلام: {delete_opt_query} | القيم: {(opt['id'],)}")  # طباعة الاستعلام
-                                cursor.execute(delete_opt_query, (opt["id"],))
-                                conn.commit()
-                                st.success("✅ تم حذف الخيار")
-
-                                # التأكد من أن commit تم بنجاح
-                                print(f"تم تنفيذ الاستعلام بنجاح: {delete_opt_query}")
-
-                                cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (selected_template_level,))
-                                questions = cursor.fetchall()
-                                st.session_state.questions = questions
-
-                            except Exception as e:
-                                st.error(f"❌ حدث خطأ أثناء حذف الخيار: {e}")
-                                print(f"خطأ أثناء حذف الخيار: {e}")
-
-                with st.form(key=f"add_option_{q['id']}"):
-                    option_text = st.text_input(f"النص الخاص بالخيار {q['id']}", key=f"opt_text_{q['id']}")
-                    score = st.number_input("الدرجة", 0, 100, step=1, key=f"opt_score_{q['id']}")
-                    submitted_opt = st.form_submit_button(f"➕ أضف خيار {q['id']}")
-                    if submitted_opt and option_text:
-                        try:
-                            insert_opt_query = "INSERT INTO self_assessment_options (question_id, option_text, score) VALUES (%s, %s, %s)"
-                            print(f"الاستعلام: {insert_opt_query} | القيم: {(q['id'], option_text, score)}")  # طباعة الاستعلام
-                            cursor.execute(insert_opt_query, (q["id"], option_text, score))
-                            conn.commit()
-                            st.success("✅ تم إضافة الخيار")
-
-                            # التأكد من أن commit تم بنجاح
-                            print(f"تم تنفيذ الاستعلام بنجاح: {insert_opt_query}")
-
-                            cursor.execute("SELECT * FROM self_assessment_templates WHERE level = %s", (selected_template_level,))
-                            questions = cursor.fetchall()
-                            st.session_state.questions = questions
-
-                        except Exception as e:
-                            st.error(f"❌ حدث خطأ أثناء إضافة الخيار: {e}")
-                            print(f"خطأ أثناء إضافة الخيار: {e}")
+                st.error(f"❌ فشل في حفظ البيانات: {e}")
 # ========== التبويب الثالث: نقاطي ==========
 elif selected_tab == "نقاطي (تقييم من المشرف)":
     st.header("🏅 إعداد بنود تقييم من المشرف")
