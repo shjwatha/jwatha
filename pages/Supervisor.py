@@ -67,46 +67,42 @@ if permissions == "sp":
 else:
     my_supervisors = []
 
+# تحميل الطلاب المرتبطين بالمشرف أو السوبر مشرف (حسب المستوى أيضاً)
 my_users = []
+
 for supervisor in ([username] + my_supervisors):
     cursor.execute("""
         SELECT username FROM users 
         WHERE role = 'user' AND mentor = %s AND is_deleted = FALSE AND level = %s
     """, (supervisor, my_level))
     my_users += [row["username"] for row in cursor.fetchall()]
+
 all_user_options += [(u, "مستخدم") for u in my_users]
 
-# ===== تحميل تقارير الأداء =====
+# تحميل تقارير الأداء
 try:
     merged_df = pd.read_sql("SELECT * FROM reports", conn)
 except Exception as e:
     st.error(f"❌ حدث خطأ أثناء تحميل تقارير الأداء: {e}")
     merged_df = pd.DataFrame()
 
-# ===== إشعار toast و markdown لوجود رسائل غير مقروءة (مع شرط التبويب) =====
+# ===== إشعار ثابت عند وجود رسائل غير مقروءة =====
 try:
     cursor.execute("""
         SELECT DISTINCT sender 
         FROM chat_messages 
         WHERE receiver = %s AND read_by_receiver = 0
     """, (username,))
-    senders = [row["sender"] for row in cursor.fetchall()]
-    unread_count = len(senders)
+    unread_senders = [row["sender"] for row in cursor.fetchall()]
 except Exception as e:
-    senders = []
-    unread_count = 0
+    unread_senders = []
 
-if "selected_tab_index" not in st.session_state:
-    st.session_state["selected_tab_index"] = 0
-
-if unread_count > 0 and st.session_state["selected_tab_index"] != 1:
-    sender_names = " - ".join(senders)
-    toast_message = f"🔴 لديك {unread_count} رسائل جديدة من: {sender_names}"
-    st.toast(toast_message, icon="🔴")
+if unread_senders:
+    names_str = " - ".join(unread_senders)
     st.markdown(
         f"""
-        <div style='background-color:#ffe6e6; padding:10px; border-right:6px solid red; border-radius:4px; margin-bottom:10px;'>
-            <strong style='color:red;'>📬 إشعار:</strong> {toast_message}
+        <div style="background-color:#FFCCCC; padding:10px; border-radius:5px; border: 1px solid red; margin-bottom: 15px;">
+            <b>📨 لديك رسائل جديدة من: {names_str}</b>
         </div>
         """,
         unsafe_allow_html=True
