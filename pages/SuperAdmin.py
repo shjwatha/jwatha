@@ -290,7 +290,13 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                             )
                 conn.commit()
                 st.success("✅ تم حفظ السؤال الجديد.")
-                st.experimental_rerun()
+
+                # تفريغ القيم من session_state
+                for key in list(st.session_state.keys()):
+                    if key.startswith("new_"):
+                        del st.session_state[key]
+
+                st.rerun()
             else:
                 st.warning("⚠️ يرجى إدخال نص السؤال.")
 
