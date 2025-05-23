@@ -257,7 +257,7 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                     cursor.execute("UPDATE self_assessment_options SET is_deleted = 1 WHERE question_id = %s", (q["id"],))
                     conn.commit()
                     st.success("❌ تم حذف السؤال.")
-                    st.experimental_rerun()
+                    st.rerun()
 
         # إضافة سؤال جديد
         st.markdown("---")
