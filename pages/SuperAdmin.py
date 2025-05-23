@@ -196,7 +196,7 @@ if selected_tab == "إدارة الأعضاء":
                     st.rerun()
 
 
-# ========== التبويب الثاني: إعداد نموذج التقييم الذاتي ==========
+
 # ===================== تبويب 2: إدارة النماذج والأسئلة =====================
 elif selected_tab == "إعداد نموذج التقييم الذاتي":
     st.header("📋 إدارة استمارات التقييم الذاتي")
@@ -230,7 +230,6 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                 updated_text = st.text_input("🔧 تعديل نص السؤال", value=q['question'], key=f"edit_q_{q['id']}")
                 updated_type = st.selectbox("🔄 نوع السؤال", ["radio", "checkbox", "text", "select"], index=["radio", "checkbox", "text", "select"].index(q["input_type"]), key=f"edit_type_{q['id']}")
 
-                # خيارات مرتبطة بالسؤال
                 options = []
                 if updated_type in ["radio", "checkbox", "select"]:
                     cursor.execute("SELECT id, option_text, score FROM self_assessment_options WHERE question_id = %s AND is_deleted = 0", (q["id"],))
@@ -241,6 +240,8 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                         opt_score = col2.number_input("الدرجة", value=opt["score"], min_value=0, max_value=100, key=f"opt_score_{opt['id']}")
                         delete_opt = col3.checkbox("🗑️ حذف", key=f"delete_opt_{opt['id']}")
                         options.append((opt["id"], opt_text, opt_score, delete_opt))
+                elif updated_type == "text":
+                    st.info("✏️ هذا السؤال يقبل إجابة نصية من المستخدم (بحد أقصى 200 حرف).")
 
                 if st.button("💾 تحديث السؤال", key=f"save_q_{q['id']}"):
                     cursor.execute("UPDATE self_assessment_templates SET question = %s, input_type = %s WHERE id = %s", (updated_text, updated_type, q["id"]))
@@ -273,6 +274,8 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                 opt_text = col1.text_input(f"الخيار {i+1}", key=f"new_opt_text_{i}")
                 opt_score = col2.number_input(f"الدرجة {i+1}", min_value=0, max_value=100, key=f"new_opt_score_{i}")
                 new_options.append((opt_text, opt_score))
+        elif new_input_type == "text":
+            st.info("✏️ هذا السؤال سيُعرض للمستخدم كنص حر (إجابة لا تتجاوز 200 حرف).")
 
         if st.button("✅ حفظ السؤال الجديد"):
             if new_question.strip():
@@ -291,7 +294,6 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                 conn.commit()
                 st.success("✅ تم حفظ السؤال الجديد.")
 
-                # تفريغ القيم من session_state
                 for key in list(st.session_state.keys()):
                     if key.startswith("new_"):
                         del st.session_state[key]
@@ -299,7 +301,6 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                 st.rerun()
             else:
                 st.warning("⚠️ يرجى إدخال نص السؤال.")
-
         
 # ========== التبويب الثالث: نقاطي ==========
 elif selected_tab == "نقاطي (تقييم من المشرف)":
