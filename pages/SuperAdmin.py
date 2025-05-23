@@ -198,7 +198,7 @@ if selected_tab == "إدارة الأعضاء":
 elif selected_tab == "إعداد نموذج التقييم الذاتي":
     st.header("📝 إعداد نموذج التقييم الذاتي - تسلسل الخطوات")
 
-    # إعداد متغير خطوة الإدخال إذا لم يكن موجوداً مسبقاً
+    # تهيئة حالة الخطوة الحالية إذا لم تكن موجودة
     if "current_step" not in st.session_state:
         st.session_state["current_step"] = 0
 
@@ -207,9 +207,10 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
         with st.form("step0_form"):
             level_options = [lvl['level_name'] for lvl in levels]
             selected_level = st.selectbox("الخطوة 0: اختر المستوى", level_options, key="selected_level")
-            if st.form_submit_button("التالي"):
+            submitted0 = st.form_submit_button("التالي")
+            if submitted0:
+                st.session_state["selected_level"] = selected_level
                 st.session_state["current_step"] = 1
-                st.experimental_rerun()
 
     # الخطوة 1: اختيار نوع السؤال
     elif st.session_state["current_step"] == 1:
@@ -221,10 +222,10 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                 "قائمة منسدلة (select)"
             ]
             selected_question_type = st.selectbox("الخطوة 1: اختر نوع السؤال", question_types, key="selected_question_type")
-            if st.form_submit_button("التالي"):
+            submitted1 = st.form_submit_button("التالي")
+            if submitted1:
                 st.session_state["selected_question_type"] = selected_question_type
                 st.session_state["current_step"] = 2
-                st.experimental_rerun()
 
     # الخطوة 2: إدخال نص السؤال
     elif st.session_state["current_step"] == 2:
@@ -234,7 +235,6 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
             with col1:
                 if st.form_submit_button("السابق"):
                     st.session_state["current_step"] = 1
-                    st.experimental_rerun()
             with col2:
                 if st.form_submit_button("التالي"):
                     if question_text.strip() == "":
@@ -242,32 +242,32 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                     else:
                         st.session_state["question_text"] = question_text
                         st.session_state["current_step"] = 3
-                        st.experimental_rerun()
 
-    # الخطوة 3: إدخال الإجابات (في حالة نوع السؤال لا يعتمد على نص مفتوح)
+    # الخطوة 3: إدخال الإجابات (في حالة إذا كان نوع السؤال لا يعتمد على نص مفتوح)
     elif st.session_state["current_step"] == 3:
         selected_type = st.session_state.get("selected_question_type", "نص مفتوح (text)")
         question_text = st.session_state.get("question_text", "")
         st.markdown(f"**السؤال:** {question_text}")
         
-        # لو كان نوع السؤال نص مفتوح فلا حاجة لإضافة إجابات
-        if selected_type == "نص مفتوح (text)":
+        # تحويل نوع السؤال للصيغة المخزنة في قاعدة البيانات
+        mapping = {
+            "خيار واحد (radio)": "radio",
+            "خيارات متعددة (checkbox)": "checkbox",
+            "نص مفتوح (text)": "text",
+            "قائمة منسدلة (select)": "select"
+        }
+        db_input_type = mapping[selected_type]
+
+        # في حالة النوع "نص مفتوح" لا حاجة لإدخال إجابات
+        if db_input_type == "text":
             st.info("السؤال من نوع نص مفتوح، لا يتطلب إدخال إجابات.")
             col1, col2 = st.columns(2)
             with col1:
                 if st.button("السابق"):
                     st.session_state["current_step"] = 2
-                    st.experimental_rerun()
             with col2:
                 if st.button("حفظ السؤال"):
                     try:
-                        mapping = {
-                            "خيار واحد (radio)": "radio",
-                            "خيارات متعددة (checkbox)": "checkbox",
-                            "نص مفتوح (text)": "text",
-                            "قائمة منسدلة (select)": "select"
-                        }
-                        db_input_type = mapping[selected_type]
                         insert_template_query = """
                             INSERT INTO self_assessment_templates (level, question, input_type)
                             VALUES (%s, %s, %s)
@@ -275,21 +275,19 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                         cursor.execute(insert_template_query, (st.session_state["selected_level"], question_text, db_input_type))
                         conn.commit()
                         st.success("✅ تم حفظ السؤال بنجاح")
-                        # إعادة ضبط الخطوات بعد الحفظ
                         st.session_state["current_step"] = 0
-                        st.experimental_rerun()
                     except Exception as e:
                         st.error(f"❌ خطأ أثناء حفظ السؤال: {e}")
         else:
             st.markdown("### الخطوة 3: أضف إجابات السؤال (مع الدرجة)")
-            
             if "answers" not in st.session_state:
                 st.session_state["answers"] = []
             
             with st.form("answer_form"):
                 answer_text = st.text_input("أدخل نص الإجابة", key="answer_text")
                 answer_score = st.number_input("أدخل الدرجة", min_value=0, max_value=100, step=1, key="answer_score")
-                if st.form_submit_button("➕ إضافة إجابة"):
+                submitted_ans = st.form_submit_button("➕ إضافة إجابة")
+                if submitted_ans:
                     if answer_text.strip() == "":
                         st.warning("⚠️ يرجى إدخال نص الإجابة")
                     else:
@@ -298,7 +296,6 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                             "score": answer_score
                         })
                         st.success("✅ تم إضافة الإجابة")
-                        st.experimental_rerun()
             
             if st.session_state["answers"]:
                 st.markdown("**الإجابات المضافة:**")
@@ -309,26 +306,17 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                     with col_ans2:
                         if st.button("حذف", key=f"delete_ans_{idx}"):
                             st.session_state["answers"].pop(idx)
-                            st.experimental_rerun()
             
             col1, col2, col3 = st.columns(3)
             with col1:
                 if st.button("السابق"):
                     st.session_state["current_step"] = 2
-                    st.experimental_rerun()
             with col3:
                 if st.button("حفظ السؤال"):
                     if not st.session_state["answers"]:
                         st.error("❌ يجب إضافة إجابة واحدة على الأقل")
                     else:
                         try:
-                            mapping = {
-                                "خيار واحد (radio)": "radio",
-                                "خيارات متعددة (checkbox)": "checkbox",
-                                "نص مفتوح (text)": "text",
-                                "قائمة منسدلة (select)": "select"
-                            }
-                            db_input_type = mapping[selected_type]
                             insert_template_query = """
                                 INSERT INTO self_assessment_templates (level, question, input_type)
                                 VALUES (%s, %s, %s)
@@ -347,7 +335,6 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                             st.success("✅ تم حفظ السؤال والإجابات بنجاح")
                             st.session_state["current_step"] = 0
                             st.session_state["answers"] = []
-                            st.experimental_rerun()
                         except Exception as e:
                             st.error(f"❌ حدث خطأ أثناء حفظ البيانات: {e}")
 # ========== التبويب الثالث: نقاطي ==========
