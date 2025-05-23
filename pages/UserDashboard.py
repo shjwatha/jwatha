@@ -48,7 +48,12 @@ except Exception as e:
 try:
     cursor.execute("SELECT mentor FROM users WHERE username = %s AND is_deleted = FALSE", (username,))
     mentor_row = cursor.fetchone()
-    mentor_name = mentor_row["mentor"] if mentor_row else "غير معروف"
+    mentor_name = mentor_row["mentor"] if mentor_row else None
+
+    if not mentor_name:
+        st.error("⚠️ لا يوجد مشرف مرتبط بهذا الحساب. يرجى مراجعة الإدارة.")
+        st.stop()
+
 except Exception as e:
     st.error(f"❌ فشل في جلب اسم المشرف: {e}")
     mentor_name = "غير معروف"
@@ -66,9 +71,19 @@ tabs = st.tabs([
 # ===================== تبويب 1: إدخال البيانات (نموذج ديناميكي من قاعدة البيانات) =====================
 # جلب المستوى الحالي للمستخدم
 try:
+# جلب المستوى والتحقق من مطابقته مع المستويات المعتمدة
     cursor.execute("SELECT level FROM users WHERE username = %s AND is_deleted = FALSE", (username,))
     level_row = cursor.fetchone()
     user_level = level_row["level"] if level_row else "غير معروف"
+
+# جلب المستويات من جدول levels
+    cursor.execute("SELECT level_name FROM levels")
+    valid_levels = [row["level_name"] for row in cursor.fetchall() if row["level_name"]]
+
+    if user_level not in valid_levels:
+        st.error("⚠️ مستوى المستخدم غير موجود ضمن المستويات المعتمدة.")
+        st.stop()
+
 except Exception as e:
     st.error(f"❗️ فشل في جلب مستوى المستخدم: {e}")
     user_level = "غير معروف"
