@@ -289,47 +289,10 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
                                 (qid, txt.strip(), score)
                             )
                 conn.commit()
-                if st.button("✅ حفظ السؤال الجديد"):
-    if new_question.strip():
-        cursor.execute(
-            "INSERT INTO self_assessment_templates (question, input_type, level, form_name, is_deleted) VALUES (%s, %s, %s, %s, 0)",
-            (new_question.strip(), new_input_type, selected_level, selected_form)
-        )
-        qid = cursor.lastrowid
-        if new_input_type in ["radio", "checkbox", "select"]:
-            for txt, score in new_options:
-                if txt.strip():
-                    cursor.execute(
-                        "INSERT INTO self_assessment_options (question_id, option_text, score, is_deleted) VALUES (%s, %s, %s, 0)",
-                        (qid, txt.strip(), score)
-                    )
-        conn.commit()
-                    if st.button("✅ حفظ السؤال الجديد"):
-                if new_question.strip():
-                    cursor.execute(
-                        "INSERT INTO self_assessment_templates (question, input_type, level, form_name, is_deleted) VALUES (%s, %s, %s, %s, 0)",
-                        (new_question.strip(), new_input_type, selected_level, selected_form)
-                    )
-                    qid = cursor.lastrowid
-                    if new_input_type in ["radio", "checkbox", "select"]:
-                        for txt, score in new_options:
-                            if txt.strip():
-                                cursor.execute(
-                                    "INSERT INTO self_assessment_options (question_id, option_text, score, is_deleted) VALUES (%s, %s, %s, 0)",
-                                    (qid, txt.strip(), score)
-                                )
-                    conn.commit()
-                    st.success("✅ تم حفظ السؤال الجديد.")
-            
-                    # تفريغ القيم من session_state
-                    for key in list(st.session_state.keys()):
-                        if key.startswith("new_"):
-                            del st.session_state[key]
-            
-                    st.rerun()
-                else:
-                    st.warning("⚠️ يرجى إدخال نص السؤال.")
-                        
+                st.success("✅ تم حفظ السؤال الجديد.")
+                st.experimental_rerun()
+            else:
+                st.warning("⚠️ يرجى إدخال نص السؤال.")
 
         
 # ========== التبويب الثالث: نقاطي ==========
