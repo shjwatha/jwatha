@@ -163,7 +163,7 @@ with tabs[1]:
                     )
                     conn.commit()
                     st.success("✅ تم الإرسال")
-                    st.experimental_rerun()
+                    st.rerun()
                 except Exception as e:
                     st.error(f"❌ فشل الإرسال: {e}")
             else:
@@ -315,7 +315,7 @@ with tabs[6]:
                     )
                     conn.commit()
                     st.success("✅ تم رصد الإنجاز بنجاح.")
-                    st.experimental_rerun()
+                    st.rerun()
             except Exception as e:
                 st.error(f"❌ حدث خطأ أثناء رصد الإنجاز: {e}")
     else:
