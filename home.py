@@ -57,13 +57,15 @@ if not st.session_state["authenticated"]:
                     st.switch_page("pages/UserDashboard.py")
                     st.stop()
 
-            # تحقق من جدول الأدمن
+            # تحقق من جدول الأدمن (admin / supervisor / sp)
             cursor.execute("SELECT * FROM admins WHERE username = %s AND password = %s AND is_deleted = 0", (username, password))
             admin = cursor.fetchone()
 
             if admin:
                 if admin["level"] not in valid_levels:
                     st.error("⚠️ المستوى المرتبط بحساب الأدمن غير صالح.")
+                elif admin["role"] == "supervisor" and not admin.get("mentor"):
+                    st.error("⚠️ لا يوجد سوبر مشرف مرتبط بهذا المشرف.")
                 else:
                     st.session_state.update({
                         "authenticated": True,
