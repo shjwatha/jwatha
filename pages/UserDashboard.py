@@ -59,6 +59,7 @@ except Exception as e:
     mentor_name = "غير معروف"
 
 # ===================== التبويبات =====================
+# ===================== التبويبات =====================
 tabs = st.tabs([
     "📝 إدخال البيانات", 
     "💬 المحادثات", 
@@ -66,8 +67,7 @@ tabs = st.tabs([
     "🗒️ الإنجازات"
 ])
 
-# ===================== تبويب 1: إدخال البيانات (نموذج ديناميكي من قاعدة البيانات) =====================
-# جلب المستوى الحالي للمستخدم
+# ===================== تبويب 1: إدخال البيانات =====================
 try:
     cursor.execute("SELECT level FROM users WHERE username = %s AND is_deleted = FALSE", (username,))
     level_row = cursor.fetchone()
@@ -79,7 +79,6 @@ try:
     if user_level not in valid_levels:
         st.error("⚠️ مستوى المستخدم غير موجود ضمن المستويات المعتمدة.")
         st.stop()
-
 except Exception as e:
     st.error(f"❗️ فشل في جلب مستوى المستخدم: {e}")
     user_level = "غير معروف"
@@ -105,7 +104,7 @@ with tabs[0]:
     selected_date = dict(hijri_dates)[selected_label]
     eval_date_str = selected_date.strftime("%Y-%m-%d")
 
-    # اختيار النموذج المتاح للمستوى
+    # اختيار النموذج المتاح
     try:
         cursor.execute("SELECT DISTINCT form_name FROM self_assessment_templates WHERE is_deleted = 0 AND level = %s", (user_level,))
         form_rows = cursor.fetchall()
@@ -126,7 +125,12 @@ with tabs[0]:
 
     with st.form("dynamic_evaluation_form"):
         try:
-            cursor.execute("SELECT id, question, input_type FROM self_assessment_templates WHERE is_deleted = 0 AND level = %s AND form_name = %s ORDER BY id ASC", (user_level, selected_form))
+            cursor.execute("""
+                SELECT id, question, input_type 
+                FROM self_assessment_templates 
+                WHERE is_deleted = 0 AND level = %s AND form_name = %s 
+                ORDER BY id ASC
+            """, (user_level, selected_form))
             templates = cursor.fetchall()
         except Exception as e:
             st.error(f"❗️ فشل في تحميل البنود: {e}")
@@ -138,10 +142,12 @@ with tabs[0]:
                 t_id = t["id"]
                 t_title = t["question"]
                 q_type = t["input_type"]
+
                 try:
                     if q_type == "text":
-                        user_input = st.text_area(t_title, key=f"text_{t_id}")
-                        responses.append((eval_date_str, username, mentor_name, t_title, 0))
+                        user_input = st.text_area(t_title, key=f"text_{t_id}", max_chars=200)
+                        responses.append((eval_date_str, username, mentor_name, t_title, 0, user_input.strip()))
+
                     else:
                         cursor.execute("SELECT option_text, score FROM self_assessment_options WHERE question_id = %s AND is_deleted = 0 ORDER BY id ASC", (t_id,))
                         options = cursor.fetchall()
@@ -150,17 +156,19 @@ with tabs[0]:
 
                         if q_type == "radio":
                             selected = st.radio(t_title, option_labels, key=f"radio_{t_id}")
-                            responses.append((eval_date_str, username, mentor_name, t_title, option_map[selected]))
+                            responses.append((eval_date_str, username, mentor_name, t_title, option_map[selected], ""))
+
                         elif q_type == "select":
                             selected = st.selectbox(t_title, option_labels, key=f"select_{t_id}")
-                            responses.append((eval_date_str, username, mentor_name, t_title, option_map[selected]))
+                            responses.append((eval_date_str, username, mentor_name, t_title, option_map[selected], ""))
+
                         elif q_type == "checkbox":
                             selected = st.multiselect(t_title, option_labels, key=f"checkbox_{t_id}")
                             total_score = sum([option_map[opt] for opt in selected])
-                            responses.append((eval_date_str, username, mentor_name, t_title, total_score))
+                            responses.append((eval_date_str, username, mentor_name, t_title, total_score, ""))
+
                         else:
                             st.warning(f"⚠️ نوع السؤال غير مدعوم: {q_type}")
-
                 except Exception as e:
                     st.error(f"❗️ خطأ أثناء تحميل خيارات البند '{t_title}': {e}")
         else:
@@ -172,9 +180,12 @@ with tabs[0]:
                     cursor.execute("DELETE FROM daily_evaluations WHERE student = %s AND DATE(timestamp) = %s", (username, eval_date_str))
                     for eval_row in responses:
                         cursor.execute("""
-                            INSERT INTO daily_evaluations (timestamp, student, supervisor, question, score)
-                            VALUES (%s, %s, %s, %s, %s)
-                        """, (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), eval_row[1], eval_row[2], eval_row[3], eval_row[4]))
+                            INSERT INTO daily_evaluations (timestamp, student, supervisor, question, score, free_text)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                        """, (
+                            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            eval_row[1], eval_row[2], eval_row[3], eval_row[4], eval_row[5]
+                        ))
                     conn.commit()
                     st.success("✅ تم حفظ التقييم بنجاح.")
                     st.rerun()
@@ -290,7 +301,7 @@ with tabs[2]:
     else:
         selected_form = st.selectbox("📄 اختر النموذج", available_forms, key="selected_form_report")
 
-    # تحميل التقييمات من قاعدة البيانات
+    # تحميل التقييمات من daily_evaluations
     try:
         df = pd.read_sql("""
             SELECT DATE(timestamp) AS التاريخ, question AS البند, score AS الدرجة, free_text
@@ -302,7 +313,7 @@ with tabs[2]:
         st.error(f"❌ فشل في تحميل التقارير: {e}")
         df = pd.DataFrame()
 
-    # جلب الأسئلة المرتبطة بالنموذج
+    # جلب بنود النموذج لتصفية الأسئلة المطلوبة
     try:
         cursor.execute("""
             SELECT question, input_type 
@@ -318,30 +329,33 @@ with tabs[2]:
         text_questions = []
 
     if not df.empty and form_questions:
-        # تصفية الأسئلة الخاصة بالنموذج
         df = df[df["البند"].isin(form_questions)]
 
-        # تقسيم بين الأسئلة النصية وغير النصية
+        # تقسيم الإجابات النصية عن الإجابات بالدرجات
         df_text = df[df["البند"].isin(text_questions)]
         df_scored = df[~df["البند"].isin(text_questions)]
 
-        # عرض التقييمات التي تحتوي على درجات
+        # عرض الدرجات
         if not df_scored.empty:
             summary = df_scored.groupby(["التاريخ", "البند"]).sum().reset_index()
             pivoted = summary.pivot(index="التاريخ", columns="البند", values="الدرجة").fillna(0)
             st.markdown("### 📈 تقييم البنود القابلة للتقدير")
             st.dataframe(pivoted, use_container_width=True)
 
-        # عرض التقييمات النصية
+        # عرض النصوص
         if not df_text.empty:
             df_text = df_text[df_text["free_text"].notnull() & (df_text["free_text"].str.strip() != "")]
             if not df_text.empty:
                 st.markdown("### 📝 إجابات المستخدم للأسئلة النصية")
-                st.dataframe(df_text[["التاريخ", "البند", "free_text"]].rename(columns={"free_text": "الإجابة النصية"}), use_container_width=True)
+                st.dataframe(
+                    df_text[["التاريخ", "البند", "free_text"]].rename(columns={"free_text": "الإجابة النصية"}),
+                    use_container_width=True
+                )
             else:
                 st.info("ℹ️ لا توجد إجابات نصية محفوظة.")
     else:
         st.info("ℹ️ لا توجد بيانات في الفترة المحددة أو لهذا النموذج.")
+
 
 # ===================== تبويب 4: الإنجازات =====================
 with tabs[3]:
