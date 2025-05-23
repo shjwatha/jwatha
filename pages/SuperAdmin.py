@@ -294,17 +294,7 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
             else:
                 st.warning("⚠️ يرجى إدخال نص السؤال.")
 
-        # ✅ معاينة النموذج كما سيظهر للمستخدم
-        st.markdown("---")
-        st.markdown("### 👀 معاينة النموذج")
-        for q in questions:
-            st.markdown(f"**{q['question']}**")
-            if q["input_type"] in ["radio", "select"]:
-                st.radio("", ["خيار 1", "خيار 2"], key=f"preview_r_{q['id']}")
-            elif q["input_type"] == "checkbox":
-                st.multiselect("", ["خيار 1", "خيار 2"], key=f"preview_c_{q['id']}")
-            elif q["input_type"] == "text":
-                st.text_input("", key=f"preview_t_{q['id']}")
+        
 # ========== التبويب الثالث: نقاطي ==========
 elif selected_tab == "نقاطي (تقييم من المشرف)":
     st.header("🏅 إعداد بنود تقييم من المشرف")
