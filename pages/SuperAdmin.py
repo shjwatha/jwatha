@@ -195,109 +195,78 @@ if selected_tab == "إدارة الأعضاء":
                     st.success("✅ تم إضافة المشرف")
                     st.rerun()
 # ===================== تبويب 2: إنشاء استمارة التقييم الذاتي ===================elif selected_tab == "إعداد نموذج التقييم الذاتي":
-    # ===================== تبويب 2: إدارة النماذج والأسئلة (نمط Microsoft Forms) =====================
+    # ===================== تبويب 2: إدارة النماذج والأسئلة =====================
 with tabs[1]:
-    st.subheader("📋 إدارة نماذج التقييم الذاتي")
+    st.header("📋 إدارة استمارات التقييم الذاتي")
 
-    # --- 1) اختيار المستوى ---
+    # اختيار المستوى
     cursor.execute("SELECT DISTINCT level_name FROM levels")
     levels = [row["level_name"] for row in cursor.fetchall()]
     selected_level = st.selectbox("📚 اختر المستوى", levels)
 
-    # --- 2) اختيار النموذج أو إنشاء جديد ---
-    cursor.execute("SELECT DISTINCT form_name FROM self_assessment_templates WHERE level = %s AND is_deleted = 0", (selected_level,))
-    form_names = [row["form_name"] for row in cursor.fetchall()]
-    form_names_display = ["➕ إضافة نموذج جديد"] + form_names
+    # اختيار النموذج
+    cursor.execute("SELECT DISTINCT form_name FROM self_assessment_templates WHERE level = %s", (selected_level,))
+    forms = [row["form_name"] for row in cursor.fetchall() if row["form_name"]]
+    form_display = ["➕ نموذج جديد"] + forms
+    selected_form = st.selectbox("🗂️ اختر النموذج", form_display)
 
-    selected_form = st.selectbox("🗂️ اختر النموذج", form_names_display)
+    if selected_form == "➕ نموذج جديد":
+        new_form = st.text_input("📝 اسم النموذج الجديد")
+        if new_form:
+            selected_form = new_form
 
-    if selected_form == "➕ إضافة نموذج جديد":
-        new_form_name = st.text_input("📌 أدخل اسم النموذج الجديد")
-        if st.button("✅ حفظ النموذج"):
-            if new_form_name.strip():
-                # لا حاجة لإدخال سجل الآن، سيتم إنشاؤه مع أول سؤال
-                st.success(f"✅ تم اعتماد النموذج الجديد: {new_form_name}")
-                selected_form = new_form_name
-            else:
-                st.warning("⚠️ أدخل اسمًا صالحًا للنموذج.")
-
-    # --- فقط إذا تم اختيار نموذج ---
-    if selected_form and selected_form != "➕ إضافة نموذج جديد":
-
-        # --- 3) اختيار سؤال موجود أو إضافة جديد ---
-        cursor.execute("SELECT id, question FROM self_assessment_templates WHERE level = %s AND form_name = %s AND is_deleted = 0", (selected_level, selected_form))
+    if selected_form != "➕ نموذج جديد":
+        # اختيار أو إضافة سؤال
+        cursor.execute(
+            "SELECT id, question FROM self_assessment_templates WHERE level = %s AND form_name = %s",
+            (selected_level, selected_form)
+        )
         questions = cursor.fetchall()
         question_map = {q["question"]: q["id"] for q in questions}
-        question_list = ["➕ إضافة سؤال جديد"] + list(question_map.keys())
+        question_list = ["➕ سؤال جديد"] + list(question_map.keys())
 
-        selected_question = st.selectbox("❓ اختر سؤالًا", question_list)
+        selected_question = st.selectbox("❓ اختر سؤال", question_list)
 
-        if selected_question == "➕ إضافة سؤال جديد":
+        if selected_question == "➕ سؤال جديد":
             new_question = st.text_input("🧾 نص السؤال")
             input_type = st.selectbox("🔘 نوع السؤال", ["radio", "checkbox", "text", "select"])
+
             options = []
             if input_type in ["radio", "checkbox", "select"]:
-                num_options = st.number_input("كم عدد الخيارات؟", min_value=2, max_value=10, step=1)
+                num_options = st.number_input("عدد الخيارات", min_value=2, max_value=10, step=1)
                 for i in range(int(num_options)):
                     col1, col2 = st.columns([3, 1])
-                    opt_text = col1.text_input(f"الخيار {i+1}", key=f"new_opt_text_{i}")
-                    opt_score = col2.number_input(f"الدرجة {i+1}", min_value=0, max_value=100, step=1, key=f"new_opt_score_{i}")
-                    options.append((opt_text, opt_score))
+                    opt_text = col1.text_input(f"الخيار {i+1}", key=f"opt_text_{i}")
+                    opt_score = col2.number_input(f"الدرجة {i+1}", min_value=0, max_value=100, step=1, key=f"opt_score_{i}")
+                    options.append((opt_text.strip(), opt_score))
 
             if st.button("💾 حفظ السؤال"):
                 if not new_question.strip():
-                    st.warning("⚠️ يرجى إدخال نص السؤال.")
+                    st.warning("⚠️ أدخل نص السؤال.")
                 else:
-                    # إدخال السؤال
                     cursor.execute("""
                         INSERT INTO self_assessment_templates (question, input_type, level, form_name, is_deleted)
                         VALUES (%s, %s, %s, %s, 0)
                     """, (new_question.strip(), input_type, selected_level, selected_form))
                     conn.commit()
-                    question_id = cursor.lastrowid
+                    qid = cursor.lastrowid
 
-                    # إدخال الخيارات
                     if input_type in ["radio", "checkbox", "select"]:
-                        for opt_text, opt_score in options:
-                            if opt_text.strip():
+                        for text, score in options:
+                            if text:
                                 cursor.execute("""
                                     INSERT INTO self_assessment_options (question_id, option_text, score, is_deleted)
                                     VALUES (%s, %s, %s, 0)
-                                """, (question_id, opt_text.strip(), opt_score))
+                                """, (qid, text, score))
                         conn.commit()
 
-                    st.success("✅ تم حفظ السؤال والخيارات.")
+                    st.success("✅ تم حفظ السؤال.")
                     st.experimental_rerun()
 
         elif selected_question:
-            st.markdown(f"✏️ جاري تعديل السؤال: **{selected_question}**")
-            question_id = question_map[selected_question]
+            st.write(f"✏️ تعديل السؤال: {selected_question} (لاحقًا)")
 
-            # جلب التفاصيل القديمة
-            cursor.execute("SELECT * FROM self_assessment_templates WHERE id = %s", (question_id,))
-            q_data = cursor.fetchone()
-            updated_text = st.text_input("🧾 نص السؤال", value=q_data["question"])
-            updated_type = st.selectbox("🔘 نوع السؤال", ["radio", "checkbox", "text", "select"], index=["radio", "checkbox", "text", "select"].index(q_data["input_type"]))
 
-            # الخيارات
-            options = []
-            if updated_type in ["radio", "checkbox", "select"]:
-                cursor.execute("SELECT * FROM self_assessment_options WHERE question_id = %s AND is_deleted = 0", (question_id,))
-                current_opts = cursor.fetchall()
-                for i, opt in enumerate(current_opts):
-                    col1, col2 = st.columns([3, 1])
-                    opt_text = col1.text_input(f"الخيار {i+1}", value=opt["option_text"], key=f"edit_opt_text_{i}")
-                    opt_score = col2.number_input(f"الدرجة {i+1}", value=opt["score"], min_value=0, max_value=100, step=1, key=f"edit_opt_score_{i}")
-                    options.append((opt["id"], opt_text.strip(), opt_score))
-
-            if st.button("💾 تحديث السؤال"):
-                cursor.execute("UPDATE self_assessment_templates SET question = %s, input_type = %s WHERE id = %s", (updated_text, updated_type, question_id))
-                if updated_type in ["radio", "checkbox", "select"]:
-                    for opt_id, opt_text, opt_score in options:
-                        cursor.execute("UPDATE self_assessment_options SET option_text = %s, score = %s WHERE id = %s", (opt_text, opt_score, opt_id))
-                conn.commit()
-                st.success("✅ تم تحديث السؤال.")
-                st.experimental_rerun()
 
 # ========== التبويب الثالث: نقاطي ==========
 elif selected_tab == "نقاطي (تقييم من المشرف)":
