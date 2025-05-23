@@ -67,7 +67,6 @@ if permissions == "sp":
 else:
     my_supervisors = []
 
-# تحميل الطلاب المرتبطين بالمشرف أو السوبر مشرف (حسب المستوى أيضاً)
 my_users = []
 for supervisor in ([username] + my_supervisors):
     cursor.execute("""
@@ -77,14 +76,14 @@ for supervisor in ([username] + my_supervisors):
     my_users += [row["username"] for row in cursor.fetchall()]
 all_user_options += [(u, "مستخدم") for u in my_users]
 
-# تحميل تقارير الأداء
+# ===== تحميل تقارير الأداء =====
 try:
     merged_df = pd.read_sql("SELECT * FROM reports", conn)
 except Exception as e:
     st.error(f"❌ حدث خطأ أثناء تحميل تقارير الأداء: {e}")
     merged_df = pd.DataFrame()
 
-# ===== إشعار بالرسائل غير المقروءة قبل عرض التبويبات =====
+# ===== التحقق من الرسائل غير المقروءة =====
 try:
     cursor.execute("""
         SELECT COUNT(*) as unread_count 
@@ -96,15 +95,16 @@ try:
 except Exception as e:
     unread_count = 0
 
-# تهيئة التبويب الحالي في session_state
+# تهيئة التبويب الحالي إن لم يكن موجود
 if "selected_tab_index" not in st.session_state:
-    st.session_state["selected_tab_index"] = 0  # التبويب الأول (تقرير إجمالي)
+    st.session_state["selected_tab_index"] = 0  # تبويب 0: تقرير إجمالي
 
-# إشعار إذا كان هناك رسائل جديدة
+# ===== إشعار منبثق وإشعار دائم =====
 if unread_count > 0 and st.session_state["selected_tab_index"] != 1:
+    st.toast(f"📨 لديك {unread_count} رسالة جديدة غير مقروءة!", icon="📬")
     st.warning(f"📬 لديك {unread_count} رسالة جديدة غير مقروءة في تبويب المحادثات.")
-    if st.button("🔁 الانتقال إلى تبويب المحادثات"):
-        st.session_state["selected_tab_index"] = 1
+    if st.button("🔁 الانتقال إلى المحادثات"):
+        st.session_state["selected_tab_index"] = 1  # تبويب المحادثات
         st.rerun()
 
 # ===== التبويبات =====
