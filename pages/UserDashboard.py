@@ -88,7 +88,8 @@ with tabs[0]:
 
         # جلب البنود والأسئلة من قاعدة البيانات
         try:
-            cursor.execute("SELECT id, question FROM self_assessment_templates WHERE is_deleted = 0 ORDER BY id ASC")
+            cursor.execute("SELECT id, question FROM self_assessment_templates WHERE is_deleted = 0 AND level = %s ORDER BY id ASC", (user_level,))
+
             templates = cursor.fetchall()
         except Exception as e:
             st.error(f"❌ فشل في تحميل البنود: {e}")
