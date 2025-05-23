@@ -195,39 +195,35 @@ if selected_tab == "إدارة الأعضاء":
                     st.success("✅ تم إضافة المشرف")
                     st.rerun()
 # ===================== تبويب 2: إدارة النماذج والأسئلة =====================
+# ===================== تبويب 2: إدارة النماذج والأسئلة =====================
 with tabs[1]:
-    st.header("\U0001F4CB إدارة استمارات التقييم الذاتي")
+    st.header("📋 إدارة استمارات التقييم الذاتي")
 
-    # اختيار المستوى
     cursor.execute("SELECT DISTINCT level_name FROM levels")
     levels = [row["level_name"] for row in cursor.fetchall()]
-    selected_level = st.selectbox("\U0001F4DA اختر المستوى", levels)
+    selected_level = st.selectbox("📚 اختر المستوى", levels)
 
-    # اختيار النموذج
     cursor.execute("SELECT DISTINCT form_name FROM self_assessment_templates WHERE level = %s", (selected_level,))
     forms = [row["form_name"] for row in cursor.fetchall() if row["form_name"]]
-    form_display = ["\u2795 نموذج جديد"] + forms
-    selected_form = st.selectbox("\U0001F5C2️ اختر النموذج", form_display)
+    form_display = ["➕ نموذج جديد"] + forms
+    selected_form = st.selectbox("🗂️ اختر النموذج", form_display)
 
-    if selected_form == "\u2795 نموذج جديد":
-        new_form = st.text_input("\U0001F4DD اسم النموذج الجديد")
+    if selected_form == "➕ نموذج جديد":
+        new_form = st.text_input("📝 اسم النموذج الجديد")
         if new_form:
             selected_form = new_form
 
-    if selected_form and selected_form != "\u2795 نموذج جديد":
-        st.markdown(f"#### \U0001F9FE النموذج: {selected_form}")
+    if selected_form and selected_form != "➕ نموذج جديد":
+        st.markdown(f"#### 🧾 النموذج: {selected_form}")
 
-        # عرض الأسئلة الموجودة
         cursor.execute("SELECT id, question, input_type FROM self_assessment_templates WHERE level = %s AND form_name = %s AND is_deleted = 0", (selected_level, selected_form))
         questions = cursor.fetchall()
 
         for q in questions:
             with st.expander(f"❓ {q['question']}"):
-                # تعديل السؤال
-                updated_text = st.text_input("\U0001F527 تعديل نص السؤال", value=q['question'], key=f"edit_q_{q['id']}")
-                updated_type = st.selectbox("\U0001F504 نوع السؤال", ["radio", "checkbox", "text", "select"], index=["radio", "checkbox", "text", "select"].index(q["input_type"]), key=f"edit_type_{q['id']}")
+                updated_text = st.text_input("🔧 تعديل نص السؤال", value=q['question'], key=f"edit_q_{q['id']}")
+                updated_type = st.selectbox("🔄 نوع السؤال", ["radio", "checkbox", "text", "select"], index=["radio", "checkbox", "text", "select"].index(q["input_type"]), key=f"edit_type_{q['id']}")
 
-                # خيارات مرتبطة بالسؤال
                 options = []
                 if updated_type in ["radio", "checkbox", "select"]:
                     cursor.execute("SELECT id, option_text, score FROM self_assessment_options WHERE question_id = %s AND is_deleted = 0", (q["id"],))
@@ -236,10 +232,10 @@ with tabs[1]:
                         col1, col2, col3 = st.columns([3, 1, 1])
                         opt_text = col1.text_input("الخيار", value=opt["option_text"], key=f"opt_text_{opt['id']}")
                         opt_score = col2.number_input("الدرجة", value=opt["score"], min_value=0, max_value=100, key=f"opt_score_{opt['id']}")
-                        delete_opt = col3.checkbox("\U0001F5D1️ حذف", key=f"delete_opt_{opt['id']}")
+                        delete_opt = col3.checkbox("🗑️ حذف", key=f"delete_opt_{opt['id']}")
                         options.append((opt["id"], opt_text, opt_score, delete_opt))
 
-                if st.button("\U0001F4BE تحديث السؤال", key=f"save_q_{q['id']}"):
+                if st.button("💾 تحديث السؤال", key=f"save_q_{q['id']}"):
                     cursor.execute("UPDATE self_assessment_templates SET question = %s, input_type = %s WHERE id = %s", (updated_text, updated_type, q["id"]))
                     for oid, otxt, oscore, delete_flag in options:
                         if delete_flag:
@@ -249,22 +245,21 @@ with tabs[1]:
                     conn.commit()
                     st.success("✅ تم تحديث السؤال والخيارات.")
 
-                if st.button("\U0001F5D1️ حذف السؤال نهائيًا", key=f"delete_q_{q['id']}"):
+                if st.button("🗑️ حذف السؤال نهائيًا", key=f"delete_q_{q['id']}"):
                     cursor.execute("UPDATE self_assessment_templates SET is_deleted = 1 WHERE id = %s", (q["id"],))
                     cursor.execute("UPDATE self_assessment_options SET is_deleted = 1 WHERE question_id = %s", (q["id"],))
                     conn.commit()
                     st.success("❌ تم حذف السؤال.")
                     st.experimental_rerun()
 
-        # إضافة سؤال جديد
         st.markdown("---")
-        st.markdown("### \u2795 إضافة سؤال جديد")
-        new_question = st.text_input("\U0001F9FE نص السؤال الجديد")
-        new_input_type = st.selectbox("\U0001F518 نوع السؤال", ["radio", "checkbox", "text", "select"], key="new_q_type")
+        st.markdown("### ➕ إضافة سؤال جديد")
+        new_question = st.text_input("🧾 نص السؤال الجديد")
+        new_input_type = st.selectbox("🔘 نوع السؤال", ["radio", "checkbox", "text", "select"], key="new_q_type")
 
         new_options = []
         if new_input_type in ["radio", "checkbox", "select"]:
-            num_new_opts = st.number_input("\U0001F4CA عدد الخيارات", min_value=2, max_value=10, step=1, key="new_num_opts")
+            num_new_opts = st.number_input("📊 عدد الخيارات", min_value=2, max_value=10, step=1, key="new_num_opts")
             for i in range(int(num_new_opts)):
                 col1, col2 = st.columns([3, 1])
                 opt_text = col1.text_input(f"الخيار {i+1}", key=f"new_opt_text_{i}")
@@ -291,9 +286,8 @@ with tabs[1]:
             else:
                 st.warning("⚠️ يرجى إدخال نص السؤال.")
 
-        # ✅ معاينة النموذج كما سيظهر للمستخدم
         st.markdown("---")
-        st.markdown("### \U0001F440 معاينة النموذج")
+        st.markdown("### 👀 معاينة النموذج")
         for q in questions:
             st.markdown(f"**{q['question']}**")
             if q["input_type"] in ["radio", "select"]:
