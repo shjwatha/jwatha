@@ -124,6 +124,7 @@ with tabs[1]:
     
     if selected_display != "اختر الشخص":
         selected_user = selected_display.split("(")[0].strip()
+
         try:
             chat_df = pd.read_sql("SELECT * FROM chat_messages", conn)
         except Exception as e:
@@ -131,6 +132,7 @@ with tabs[1]:
             chat_df = pd.DataFrame()
 
         if not chat_df.empty:
+            # تحديث حالة القراءة
             unread = chat_df[
                 (chat_df["sender"] == selected_user) &
                 (chat_df["receiver"] == username) &
@@ -138,8 +140,9 @@ with tabs[1]:
             ]
             for _, msg in unread.iterrows():
                 cursor.execute("UPDATE chat_messages SET read_by_receiver = 1 WHERE id = %s", (msg["id"],))
-                conn.commit()
+            conn.commit()
 
+            # عرض الرسائل
             msgs = chat_df[
                 ((chat_df["sender"] == username) & (chat_df["receiver"] == selected_user)) |
                 ((chat_df["sender"] == selected_user) & (chat_df["receiver"] == username))
@@ -148,27 +151,49 @@ with tabs[1]:
             for _, msg in msgs.iterrows():
                 sender_name = "أنت" if msg["sender"] == username else msg["sender"]
                 color = "#8B0000" if msg["sender"] == username else "#000080"
-                st.markdown(f"<p style='color:{color};'><b>{sender_name}:</b> {msg['message']}</p>", unsafe_allow_html=True)
+                if msg["sender"] == username:
+                    check_icon = "✅" if msg["read_by_receiver"] == 1 else "☑️"
+                else:
+                    check_icon = ""
+
+                ts = msg["timestamp"]
+                if isinstance(ts, str):
+                    ts = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
+                time_str = ts.strftime("%I:%M %p - %Y/%m/%d").replace("AM", "صباحًا").replace("PM", "مساءً")
+
+                st.markdown(
+                    f"""
+                    <div style='color:{color}; margin-bottom:2px;'>
+                        <b>{sender_name}:</b> {msg['message']} <span style='float:left;'>{check_icon}</span>
+                        <br><span style='font-size:11px; color:gray;'>{time_str}</span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
         else:
             st.info("💬 لا توجد رسائل حالياً.")
 
-        new_msg = st.text_area("✏️ اكتب رسالتك", height=100)
+        # تفريغ الحقل بعد الإرسال
+        if "new_msg" not in st.session_state:
+            st.session_state["new_msg"] = ""
+
+        new_msg = st.text_area("✏️ اكتب رسالتك", height=100, key="new_msg")
         if st.button("📨 إرسال الرسالة"):
             if new_msg.strip():
                 ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 try:
                     cursor.execute(
                         "INSERT INTO chat_messages (timestamp, sender, receiver, message, read_by_receiver) VALUES (%s, %s, %s, %s, %s)",
-                        (ts, username, selected_user, new_msg, 0)
+                        (ts, username, selected_user, new_msg.strip(), 0)
                     )
                     conn.commit()
                     st.success("✅ تم الإرسال")
+                    del st.session_state["new_msg"]  # ✅ تفريغ الحقل
                     st.rerun()
                 except Exception as e:
                     st.error(f"❌ فشل الإرسال: {e}")
             else:
                 st.warning("⚠️ لا يمكن إرسال رسالة فارغة.")
-
 # ===== تبويب 3: تجميعي الكل =====
 with tabs[2]:
     st.subheader("📋 تجميع درجات الكل")
