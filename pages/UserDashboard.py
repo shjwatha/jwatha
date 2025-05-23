@@ -88,6 +88,7 @@ except Exception as e:
     st.error(f"❗️ فشل في جلب مستوى المستخدم: {e}")
     user_level = "غير معروف"
 
+
 with tabs[0]:
     st.markdown(f"<h3 style='color:#0000FF; font-weight:bold;'>👋 أهلاً {username} | مجموعتك: {mentor_name} | مستواك: {user_level}</h3>", unsafe_allow_html=True)
     st.markdown("<h4 style='color:#0000FF; font-weight:bold;'>📝 المحاسبة الذاتية اليومية (نموذج مخصص)</h4>", unsafe_allow_html=True)
