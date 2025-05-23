@@ -172,20 +172,21 @@ with tabs[1]:
     options = []
 
     try:
-        # جلب مشرف المستخدم
+        # الخطوة 1: جلب المشرف المباشر للمستخدم
         cursor.execute("SELECT mentor FROM users WHERE username = %s AND is_deleted = FALSE", (username,))
-        mentor_row = cursor.fetchone()
-        if mentor_row and mentor_row["mentor"]:
-            mentor_name = mentor_row["mentor"]
-            options.append(mentor_name)
+        user_row = cursor.fetchone()
+        if user_row and user_row["mentor"]:
+            mentor_1 = user_row["mentor"]
+            options.append(mentor_1)
 
-            # جلب مشرف المشرف (السوبر مشرف)
-            cursor.execute("SELECT mentor FROM users WHERE username = %s AND is_deleted = FALSE", (mentor_name,))
+            # الخطوة 2: جلب مشرف المشرف (السوبر مشرف)
+            cursor.execute("SELECT mentor FROM users WHERE username = %s AND is_deleted = FALSE", (mentor_1,))
             super_row = cursor.fetchone()
             if super_row and super_row["mentor"]:
-                super_mentor = super_row["mentor"]
-                if super_mentor not in options:
-                    options.append(super_mentor)
+                mentor_2 = super_row["mentor"]
+                if mentor_2 not in options:
+                    options.append(mentor_2)
+
     except Exception as e:
         st.error(f"❌ فشل تحميل قائمة المشرفين: {e}")
 
