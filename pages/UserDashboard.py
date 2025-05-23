@@ -106,8 +106,27 @@ with tabs[0]:
         selected_date = dict(hijri_dates)[selected_label]
         eval_date_str = selected_date.strftime("%Y-%m-%d")
 
+        # اختيار النموذج المتاح للمستوى
         try:
-            cursor.execute("SELECT id, question, input_type FROM self_assessment_templates WHERE is_deleted = 0 AND level = %s ORDER BY id ASC", (user_level,))
+            cursor.execute("SELECT DISTINCT form_name FROM self_assessment_templates WHERE is_deleted = 0 AND level = %s", (user_level,))
+            form_rows = cursor.fetchall()
+            available_forms = [row["form_name"] for row in form_rows if row["form_name"]]
+        except Exception as e:
+            st.error(f"❗️ فشل في تحميل النماذج: {e}")
+            available_forms = []
+
+        if not available_forms:
+            st.info("ℹ️ لا توجد نماذج تقييم متاحة لهذا المستوى.")
+            st.stop()
+
+        if len(available_forms) == 1:
+            selected_form = available_forms[0]
+            st.info(f"📄 النموذج المختار تلقائيًا: {selected_form}")
+        else:
+            selected_form = st.selectbox("📄 اختر النموذج", available_forms)
+
+        try:
+            cursor.execute("SELECT id, question, input_type FROM self_assessment_templates WHERE is_deleted = 0 AND level = %s AND form_name = %s ORDER BY id ASC", (user_level, selected_form))
             templates = cursor.fetchall()
         except Exception as e:
             st.error(f"❗️ فشل في تحميل البنود: {e}")
@@ -145,7 +164,7 @@ with tabs[0]:
                 except Exception as e:
                     st.error(f"❗️ خطأ أثناء تحميل خيارات البند '{t_title}': {e}")
         else:
-            st.info("ℹ️ لا توجد بنود نشطة لهذا المستوى. تأكد أن المشرف العام أعدّ النموذج.")
+            st.info("ℹ️ لا توجد بنود نشطة لهذا النموذج.")
 
         if st.form_submit_button("📏 حفظ"):
             if responses:
