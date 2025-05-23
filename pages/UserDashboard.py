@@ -59,6 +59,7 @@ except Exception as e:
     mentor_name = "غير معروف"
 
 # ===================== التبويبات =====================
+
 tabs = st.tabs([
     "📝 إدخال البيانات", 
     "💬 المحادثات", 
@@ -66,17 +67,13 @@ tabs = st.tabs([
     "🗒️ الإنجازات"
 ])
 
-
-
 # ===================== تبويب 1: إدخال البيانات (نموذج ديناميكي من قاعدة البيانات) =====================
 # جلب المستوى الحالي للمستخدم
 try:
-# جلب المستوى والتحقق من مطابقته مع المستويات المعتمدة
     cursor.execute("SELECT level FROM users WHERE username = %s AND is_deleted = FALSE", (username,))
     level_row = cursor.fetchone()
     user_level = level_row["level"] if level_row else "غير معروف"
 
-# جلب المستويات من جدول levels
     cursor.execute("SELECT level_name FROM levels")
     valid_levels = [row["level_name"] for row in cursor.fetchall() if row["level_name"]]
 
@@ -88,7 +85,6 @@ except Exception as e:
     st.error(f"❗️ فشل في جلب مستوى المستخدم: {e}")
     user_level = "غير معروف"
 
-
 with tabs[0]:
     st.markdown(f"<h3 style='color:#0000FF; font-weight:bold;'>👋 أهلاً {username} | مجموعتك: {mentor_name} | مستواك: {user_level}</h3>", unsafe_allow_html=True)
     st.markdown("<h4 style='color:#0000FF; font-weight:bold;'>📝 المحاسبة الذاتية اليومية (نموذج مخصص)</h4>", unsafe_allow_html=True)
@@ -98,7 +94,6 @@ with tabs[0]:
         hijri_dates = []
         for i in range(7):
             g_date = today - timedelta(days=i)
-            h_date = Gregorian(g_date.year, g_date.month, g_date.day).to_hijri()
             weekday = g_date.strftime("%A")
             arabic_weekday = {
                 "Saturday": "السبت", "Sunday": "الأحد", "Monday": "الاثنين",
@@ -112,12 +107,8 @@ with tabs[0]:
         selected_date = dict(hijri_dates)[selected_label]
         eval_date_str = selected_date.strftime("%Y-%m-%d")
 
-        # جلب البنود من قاعدة البيانات حسب مستوى المستخدم
         try:
-            cursor.execute(
-                "SELECT id, question FROM self_assessment_templates WHERE is_deleted = 0 AND level = %s ORDER BY id ASC",
-                (user_level,)
-            )
+            cursor.execute("SELECT id, question, input_type FROM self_assessment_templates WHERE is_deleted = 0 AND level = %s ORDER BY id ASC", (user_level,))
             templates = cursor.fetchall()
         except Exception as e:
             st.error(f"❗️ فشل في تحميل البنود: {e}")
@@ -128,19 +119,30 @@ with tabs[0]:
             for t in templates:
                 t_id = t["id"]
                 t_title = t["question"]
+                q_type = t["input_type"]
                 try:
-                    cursor.execute(
-                        "SELECT option_text, score FROM self_assessment_options WHERE question_id = %s AND is_deleted = 0 ORDER BY id ASC",
-                        (t_id,)
-                    )
+                    cursor.execute("SELECT option_text, score FROM self_assessment_options WHERE question_id = %s AND is_deleted = 0 ORDER BY id ASC", (t_id,))
                     options = cursor.fetchall()
-                    if options:
+                    if q_type in ["radio", "select"] and options:
                         option_labels = [f"{o['option_text']} ({o['score']} نقاط)" for o in options]
                         option_map = dict(zip(option_labels, [o['score'] for o in options]))
-                        selected = st.radio(t_title, option_labels, key=t_title)
+                        selected = st.radio(t_title, option_labels, key=f"radio_{t_id}") if q_type == "radio" else st.selectbox(t_title, option_labels, key=f"select_{t_id}")
                         responses.append((eval_date_str, username, mentor_name, t_title, option_map[selected]))
+
+                    elif q_type == "checkbox" and options:
+                        option_labels = [f"{o['option_text']} ({o['score']} نقاط)" for o in options]
+                        option_map = dict(zip(option_labels, [o['score'] for o in options]))
+                        selected = st.multiselect(t_title, option_labels, key=f"checkbox_{t_id}")
+                        total_score = sum([option_map[opt] for opt in selected])
+                        responses.append((eval_date_str, username, mentor_name, t_title, total_score))
+
+                    elif q_type == "text":
+                        user_input = st.text_area(t_title, key=f"text_{t_id}")
+                        responses.append((eval_date_str, username, mentor_name, t_title, 0))
+
                     else:
                         st.warning(f"⚠️ لا توجد خيارات للبند: {t_title}")
+
                 except Exception as e:
                     st.error(f"❗️ خطأ أثناء تحميل خيارات البند '{t_title}': {e}")
         else:
@@ -149,15 +151,9 @@ with tabs[0]:
         if st.form_submit_button("📏 حفظ"):
             if responses:
                 try:
-                    cursor.execute(
-                        "DELETE FROM daily_evaluations WHERE student = %s AND DATE(timestamp) = %s",
-                        (username, eval_date_str)
-                    )
+                    cursor.execute("DELETE FROM daily_evaluations WHERE student = %s AND DATE(timestamp) = %s", (username, eval_date_str))
                     for row in responses:
-                        cursor.execute(
-                            "INSERT INTO daily_evaluations (timestamp, student, supervisor, question, score) VALUES (%s, %s, %s, %s, %s)",
-                            (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), *row)
-                        )
+                        cursor.execute("INSERT INTO daily_evaluations (timestamp, student, supervisor, question, score) VALUES (%s, %s, %s, %s, %s)", (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), *row))
                     conn.commit()
                     st.success("✅ تم حفظ التقييم بنجاح.")
                     st.rerun()
@@ -165,6 +161,7 @@ with tabs[0]:
                     st.error(f"❗️ خطأ أثناء حفظ البيانات: {e}")
             else:
                 st.warning("⚠️ لا توجد إجابات لحفظها.")
+
 # ===================== تبويب 2: المحادثات =====================
 with tabs[1]:
     st.subheader("💬 المحادثة مع المشرف")
