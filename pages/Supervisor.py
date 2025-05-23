@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import pymysql
-import time
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
 
@@ -58,8 +57,6 @@ except Exception as e:
     st.error(f"❌ فشل في التحقق من مستوى المشرف أو السوبر مشرف: {e}")
     st.stop()
 
-import time
-
 # ===== تحميل المستخدمين والمشرفين =====
 all_user_options = []
 
@@ -86,7 +83,7 @@ except Exception as e:
     st.error(f"❌ حدث خطأ أثناء تحميل تقارير الأداء: {e}")
     merged_df = pd.DataFrame()
 
-# ===== إشعار toast ثابت ومرئي لوجود رسائل غير مقروءة (إذا لم يكن في تبويب المحادثات) =====
+# ===== إشعار toast و markdown لوجود رسائل غير مقروءة (مع شرط التبويب) =====
 try:
     cursor.execute("""
         SELECT DISTINCT sender 
@@ -99,24 +96,16 @@ except Exception as e:
     senders = []
     unread_count = 0
 
-# تهيئة تبويب افتراضي
 if "selected_tab_index" not in st.session_state:
     st.session_state["selected_tab_index"] = 0
 
-# إشعار فقط إذا لم يكن المستخدم في تبويب المحادثات
 if unread_count > 0 and st.session_state["selected_tab_index"] != 1:
     sender_names = " - ".join(senders)
     toast_message = f"🔴 لديك {unread_count} رسائل جديدة من: {sender_names}"
-
-    # إشعار منبثق (يدوم ~15 ثانية)
-    for _ in range(3):  # كل toast يدوم تقريباً 5 ثواني
-        st.toast(toast_message, icon="🔴")
-        time.sleep(5)
-
-    # إشعار كتابي ثابت باللون الأحمر
+    st.toast(toast_message, icon="🔴")
     st.markdown(
         f"""
-        <div style='background-color:#ffe6e6; padding:10px; border-right:6px solid red; border-radius:4px;'>
+        <div style='background-color:#ffe6e6; padding:10px; border-right:6px solid red; border-radius:4px; margin-bottom:10px;'>
             <strong style='color:red;'>📬 إشعار:</strong> {toast_message}
         </div>
         """,
