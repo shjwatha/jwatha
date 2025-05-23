@@ -123,7 +123,6 @@ with tabs[0]:
         st.info(f"📄 النموذج المختار تلقائيًا: {selected_form}")
     else:
         selected_form = st.selectbox("📄 اختر النموذج", available_forms, key="selected_form")
-        st.experimental_rerun()
 
     with st.form("dynamic_evaluation_form"):
         try:
