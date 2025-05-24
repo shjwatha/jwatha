@@ -400,7 +400,8 @@ with tabs[6]:
                     )
                     conn.commit()
                     st.success(f"✅ تم رصد الإنجاز «{ach_name}» للطالب {selected_student}.")
-                    st.experimental_rerun()
+                    st.rerun()
+
             except Exception as e:
                 st.error(f"❌ حدث خطأ أثناء رصد الإنجاز: {e}")
     else:
