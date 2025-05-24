@@ -4,7 +4,9 @@ import pymysql
 import pytz
 from datetime import datetime, timedelta
 from hijri_converter import Gregorian
-from datetime import datetime
+
+# تحديد توقيت الرياض
+riyadh_tz = pytz.timezone("Asia/Riyadh")
 
 
 # ===================== إعداد الصفحة والتحقق من الجلسة =====================
