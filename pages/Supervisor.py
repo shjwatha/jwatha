@@ -108,7 +108,6 @@ if unread_senders:
         unsafe_allow_html=True
     )
 
-# ===== التبويبات =====
 tabs = st.tabs([
     "تقرير إجمالي", 
     "💬 المحادثات", 
@@ -116,7 +115,8 @@ tabs = st.tabs([
     "📌 تجميعي بند",  
     "تقرير فردي", 
     "📈 رسوم بيانية",
-    "📌 رصد الإنجاز"
+    "📌 رصد الإنجاز",
+    "📝 رصد نقاطي"
 ])
 
 # ===== تبويب 1: تقرير إجمالي =====
@@ -415,3 +415,39 @@ with tabs[6]:
                 st.error(f"❌ فشل في عرض الإنجازات: {e}")
     else:
         st.info("ℹ️ لا توجد بيانات لعرضها.")
+
+
+# ===== تبويب 8: 📝 رصد نقاطي لكل طالب =====
+with tabs[7]:
+    st.subheader("📝 رصد النقاط من المشرف")
+
+    try:
+        cursor.execute("""
+            SELECT student, question, score
+            FROM supervisor_evaluations
+            WHERE student IN %s
+        """, ((tuple(my_users),)))
+        df = pd.DataFrame(cursor.fetchall())
+
+        if df.empty:
+            st.info("ℹ️ لا توجد نقاط مسجلة من المشرف بعد.")
+        else:
+            # تحميل البنود لمعرفة حالة العرض للمستخدم
+            cursor.execute("SELECT question, is_visible_to_user FROM supervisor_criteria")
+            visibility_map = {row['question']: row['is_visible_to_user'] for row in cursor.fetchall()}
+
+            df = df[df['question'].isin(visibility_map)]
+
+            pivoted = df.pivot_table(index="student", columns="question", values="score", aggfunc='sum').fillna(0)
+            pivoted = pivoted.reindex(my_users, fill_value=0)
+
+            renamed_cols = {}
+            for q in pivoted.columns:
+                visible = "نعم" if visibility_map.get(q, 0) else "لا"
+                renamed_cols[q] = f"{q} (عرض للمستخدم: {visible})"
+            pivoted.rename(columns=renamed_cols, inplace=True)
+
+            pivoted["📊 المجموع"] = pivoted.sum(axis=1)
+            st.dataframe(pivoted.reset_index(), use_container_width=True)
+    except Exception as e:
+        st.error(f"❌ فشل في تحميل نقاط المشرف: {e}")
