@@ -392,6 +392,8 @@ with tabs[2]:
         if not df_scored.empty:
             summary = df_scored.groupby(["التاريخ", "البند"]).sum().reset_index()
             pivoted = summary.pivot(index="التاريخ", columns="البند", values="الدرجة").fillna(0)
+            pivoted.insert(0, "📊 المجموع", pivoted.sum(axis=1))
+
             st.markdown("### 📈 تقييم البنود القابلة للتقدير")
             st.dataframe(pivoted, use_container_width=True)
 
