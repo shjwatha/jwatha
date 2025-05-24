@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import pymysql
+import pytz
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
 
@@ -125,9 +126,9 @@ with tabs[0]:
     
     col1, col2 = st.columns(2)
     with col1:
-        start_date = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7))
+        start_date = st.date_input("من تاريخ", datetime.now(riyadh_tz).date() - timedelta(days=7))
     with col2:
-        end_date = st.date_input("إلى تاريخ", datetime.today().date())
+        end_date = st.date_input("إلى تاريخ", datetime.now(riyadh_tz).date())
 
     try:
         cursor.execute("""
@@ -212,7 +213,7 @@ with tabs[1]:
         new_msg = st.text_area("✏️ اكتب رسالتك", height=100, key="new_msg")
         if st.button("📨 إرسال الرسالة"):
             if new_msg.strip():
-                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                ts = datetime.now(riyadh_tz).strftime("%Y-%m-%d %H:%M:%S")
                 try:
                     cursor.execute(
                         "INSERT INTO chat_messages (timestamp, sender, receiver, message, read_by_receiver) VALUES (%s, %s, %s, %s, %s)",
@@ -231,9 +232,9 @@ with tabs[2]:
     st.subheader("📋 تجميع درجات الكل")
     col1, col2 = st.columns(2)
     with col1:
-        start_date_all = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7), key="start_all")
+        start_date_all = st.date_input("من تاريخ", datetime.now(riyadh_tz).date() - timedelta(days=7), key="start_all")
     with col2:
-        end_date_all = st.date_input("إلى تاريخ", datetime.today().date(), key="end_all")
+        end_date_all = st.date_input("إلى تاريخ", datetime.now(riyadh_tz).date(), key="end_all")
 
     try:
         cursor.execute("""
@@ -258,9 +259,9 @@ with tabs[3]:
     st.subheader("📌 تجميع حسب بند معين")
     col1, col2 = st.columns(2)
     with col1:
-        start = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7), key="start_criteria")
+        start = st.date_input("من تاريخ", datetime.now(riyadh_tz).date() - timedelta(days=7), key="start_criteria")
     with col2:
-        end = st.date_input("إلى تاريخ", datetime.today().date(), key="end_criteria")
+        end = st.date_input("إلى تاريخ", datetime.now(riyadh_tz).date(), key="end_criteria")
 
     try:
         cursor.execute("""
@@ -287,9 +288,9 @@ with tabs[4]:
     st.subheader("🧍‍♂️ تقرير مستخدم محدد")
     col1, col2 = st.columns(2)
     with col1:
-        start_ind = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7), key="start_ind")
+        start_ind = st.date_input("من تاريخ", datetime.now(riyadh_tz).date() - timedelta(days=7), key="start_ind")
     with col2:
-        end_ind = st.date_input("إلى تاريخ", datetime.today().date(), key="end_ind")
+        end_ind = st.date_input("إلى تاريخ", datetime.now(riyadh_tz).date(), key="end_ind")
 
     try:
         cursor.execute("""
@@ -314,9 +315,9 @@ with tabs[5]:
     st.subheader("📈 توزيع المجموع")
     col1, col2 = st.columns(2)
     with col1:
-        start_chart = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7), key="start_chart")
+        start_chart = st.date_input("من تاريخ", datetime.now(riyadh_tz).date() - timedelta(days=7), key="start_chart")
     with col2:
-        end_chart = st.date_input("إلى تاريخ", datetime.today().date(), key="end_chart")
+        end_chart = st.date_input("إلى تاريخ", datetime.now(riyadh_tz).date(), key="end_chart")
 
     try:
         cursor.execute("""
@@ -389,7 +390,7 @@ with tabs[6]:
                 if cursor.fetchone():
                     st.warning("⚠️ هذا الإنجاز تم رصده مسبقًا لهذا الطالب.")
                 else:
-                    ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                    ts = datetime.now(riyadh_tz).strftime("%Y-%m-%d %H:%M:%S")
                     cursor.execute(
                         """
                         INSERT INTO student_achievements 
