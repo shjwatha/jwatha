@@ -348,38 +348,58 @@ with tabs[6]:
     # --- القسم الأول: رصد إنجاز جديد ---
     st.markdown("### ➕ رصد إنجاز جديد")
     
+    # 1. جلب قائمة الإنجازات (managed by SuperAdmin)
     try:
-        achievements_df = pd.read_sql("SELECT achievement FROM achievements_list", conn)
-        achievements = achievements_df["achievement"].dropna().tolist() if not achievements_df.empty else []
+        ach_df = pd.read_sql("SELECT id, achievement FROM achievements_list WHERE is_deleted = FALSE", conn)
+        achievements = ach_df.to_dict('records')
     except Exception as e:
         st.error(f"❌ تعذر تحميل قائمة الإنجازات: {e}")
         achievements = []
 
-    try:
-        student_df = pd.read_sql("SELECT username FROM users WHERE role = 'user' AND is_deleted = FALSE", conn)
-        student_list = student_df["username"].tolist() if not student_df.empty else []
-    except Exception as e:
-        st.error(f"❌ تعذر تحميل قائمة الطلاب: {e}")
-        student_list = []
+    # 2. جلب قائمة الطلاب المرتبطين بالمشرف (بما في ذلك تدرّجه)
+    all_students = []
+    for sup in [username] + my_supervisors:
+        cursor.execute("""
+            SELECT username 
+            FROM users 
+            WHERE role='user' AND mentor=%s AND is_deleted=FALSE AND level=%s
+        """, (sup, my_level))
+        all_students += [r["username"] for r in cursor.fetchall()]
+    student_list = sorted(set(all_students))
 
-    if student_list and achievements:
-        selected_student = st.selectbox("👤 اختر الطالب", student_list, key="student_select_achievement")
-        selected_achievement = st.selectbox("🏆 اختر الإنجاز", achievements, key="achievement_select")
+    if achievements and student_list:
+        # اختيار الطالب
+        selected_student = st.selectbox("👤 اختر الطالب", student_list, key="student_select_ach")
+        # بناء القائمة لعرضها بصيغة "🏆 إنجاز"
+        achievement_labels = [f"{a['achievement']}" for a in achievements]
+        sel_idx = st.selectbox("🏆 اختر الإنجاز", list(range(len(achievement_labels))),
+                               format_func=lambda i: achievement_labels[i],
+                               key="ach_select_idx")
+        
         if st.button("✅ رصد الإنجاز"):
+            ach_id = achievements[sel_idx]["id"]
+            ach_name = achievements[sel_idx]["achievement"]
             try:
-                cursor.execute("SELECT * FROM student_achievements WHERE student = %s AND achievement = %s", (selected_student, selected_achievement))
-                exists = cursor.fetchone()
-                if exists:
+                # تأكد من عدم وجود تسجيل مسبق
+                cursor.execute(
+                    "SELECT 1 FROM student_achievements WHERE student=%s AND achievement_id=%s",
+                    (selected_student, ach_id)
+                )
+                if cursor.fetchone():
                     st.warning("⚠️ هذا الإنجاز تم رصده مسبقًا لهذا الطالب.")
                 else:
-                    timestamp_now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                    ts = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
                     cursor.execute(
-                        "INSERT INTO student_achievements (timestamp, student, supervisor, achievement) VALUES (%s, %s, %s, %s)",
-                        (timestamp_now, selected_student, username, selected_achievement)
+                        """
+                        INSERT INTO student_achievements 
+                            (timestamp, student, supervisor, achievement_id) 
+                        VALUES (%s, %s, %s, %s)
+                        """,
+                        (ts, selected_student, username, ach_id)
                     )
                     conn.commit()
-                    st.success("✅ تم رصد الإنجاز بنجاح.")
-                    st.rerun()
+                    st.success(f"✅ تم رصد الإنجاز «{ach_name}» للطالب {selected_student}.")
+                    st.experimental_rerun()
             except Exception as e:
                 st.error(f"❌ حدث خطأ أثناء رصد الإنجاز: {e}")
     else:
@@ -391,26 +411,24 @@ with tabs[6]:
     st.markdown("### 📖 عرض إنجازات طالب")
 
     if student_list:
-        selected_view_student = st.selectbox("📚 اختر الطالب", student_list, key="student_view_achievement")
+        selected_view = st.selectbox("📚 اختر الطالب للعرض", student_list, key="student_view_ach")
         if st.button("📄 عرض الإنجازات"):
             try:
-                ach_query = """
-                    SELECT timestamp, student, supervisor, achievement 
-                    FROM student_achievements 
-                    WHERE student = %s 
-                    ORDER BY timestamp DESC
+                query = """
+                    SELECT sa.timestamp AS التاريخ,
+                           al.achievement AS "🏆 الإنجاز",
+                           sa.supervisor AS "المشرف"
+                    FROM student_achievements sa
+                    JOIN achievements_list al
+                      ON sa.achievement_id = al.id
+                    WHERE sa.student = %s
+                    ORDER BY sa.timestamp DESC
                 """
-                df_ach = pd.read_sql(ach_query, conn, params=(selected_view_student,))
-                if df_ach.empty:
-                    st.warning("⚠️ لا توجد إنجازات لهذا الطالب.")
+                df_view = pd.read_sql(query, conn, params=(selected_view,))
+                if df_view.empty:
+                    st.warning("⚠️ لا توجد إنجازات مسجّلة لهذا الطالب.")
                 else:
-                    df_ach.rename(columns={
-                        "timestamp": "🕒 التاريخ",
-                        "student": "الطالب",
-                        "supervisor": "المشرف",
-                        "achievement": "🏆 الإنجاز"
-                    }, inplace=True)
-                    st.dataframe(df_ach, use_container_width=True)
+                    st.dataframe(df_view, use_container_width=True)
             except Exception as e:
                 st.error(f"❌ فشل في عرض الإنجازات: {e}")
     else:
