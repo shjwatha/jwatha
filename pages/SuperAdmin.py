@@ -302,72 +302,132 @@ elif selected_tab == "إعداد نموذج التقييم الذاتي":
             else:
                 st.warning("⚠️ يرجى إدخال نص السؤال.")
         
-# ========== التبويب الثالث: نقاطي ==========
-elif selected_tab == "نقاطي (تقييم من المشرف)":
-    st.header("🏅 إعداد بنود تقييم من المشرف")
-
-    st.subheader("➕ إضافة بند جديد")
-    with st.form("add_supervisor_criterion"):
-        level = st.selectbox("اختر المستوى", [lvl['level_name'] for lvl in levels], key="supervised_level")
-        question = st.text_input("عنوان البند")
-        max_score = st.number_input("الدرجة الكاملة", min_value=1, max_value=100, value=10)
-        submitted = st.form_submit_button("➕ أضف البند")
-
-        if submitted and question:
-            try:
-                insert_query = "INSERT INTO supervisor_criteria (question, max_score, level) VALUES (%s, %s, %s)"
-                print(f"الاستعلام: {insert_query} | القيم: {(question, max_score, level)}")
-                cursor.execute(insert_query, (question, max_score, level))
-                conn.commit()
-                st.success("✅ تم حفظ البند")
-                st.rerun()  # إعادة تحميل الصفحة بعد التحديث
-            except Exception as e:
-                st.error(f"❌ حدث خطأ أثناء إضافة البند: {e}")
-
-    st.subheader("📋 البنود الحالية حسب المستوى")
-    selected_supervised_level = st.selectbox("اختر المستوى", [lvl['level_name'] for lvl in levels], key="supervised_view")
+# ===== تبويب 3: تجميعي الكل =====
+with tabs[2]:
+    st.subheader("📋 تجميع درجات الكل")
+    col1, col2 = st.columns(2)
+    with col1:
+        start_date_all = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7), key="start_all")
+    with col2:
+        end_date_all = st.date_input("إلى تاريخ", datetime.today().date(), key="end_all")
 
     try:
-        cursor.execute("SELECT * FROM supervisor_criteria WHERE level = %s", (selected_supervised_level,))
-        results = cursor.fetchall()
+        cursor.execute("""
+            SELECT student, question, score
+            FROM daily_evaluations
+            WHERE DATE(timestamp) BETWEEN %s AND %s
+        """, (start_date_all, end_date_all))
+        df = pd.DataFrame(cursor.fetchall())
 
-        if results:
-            for row in results:
-                with st.expander(f"{row['question']} (درجة كاملة: {row['max_score']})"):
-                    col1, col2 = st.columns([1, 1])
-                    
-                    # نموذج منفصل لتحديث البند
-                    with col1:
-                        with st.form(key=f"edit_form_{row['id']}"):
-                            new_question = st.text_input("عنوان البند", value=row['question'], key=f"edit_q_{row['id']}")
-                            new_score = st.number_input("الدرجة الكاملة", min_value=1, max_value=100, value=row['max_score'], key=f"edit_s_{row['id']}")
-                            if st.form_submit_button("📝 تحديث"):
-                                try:
-                                    update_query = "UPDATE supervisor_criteria SET question = %s, max_score = %s WHERE id = %s"
-                                    print(f"الاستعلام: {update_query} | القيم: {(new_question, new_score, row['id'])}")
-                                    cursor.execute(update_query, (new_question, new_score, row['id']))
-                                    conn.commit()
-                                    st.success("✅ تم التحديث")
-                                    st.rerun()  # إعادة تحميل الصفحة بعد التحديث
-                                except Exception as e:
-                                    st.error(f"❌ حدث خطأ أثناء التحديث: {e}")
-                    
-                    # زر حذف منفصل
-                    with col2:
-                        if st.button("🗑️ حذف", key=f"delete_btn_{row['id']}"):
-                            try:
-                                delete_query = "DELETE FROM supervisor_criteria WHERE id = %s"
-                                print(f"الاستعلام: {delete_query} | القيم: {(row['id'],)}")
-                                cursor.execute(delete_query, (row['id'],))
-                                conn.commit()
-                                st.success("✅ تم الحذف")
-                                st.rerun()  # إعادة تحميل الصفحة بعد الحذف
-                            except Exception as e:
-                                st.error(f"❌ حدث خطأ أثناء الحذف: {e}")
+        if df.empty:
+            st.info("ℹ️ لا توجد بيانات خلال الفترة المحددة.")
         else:
-            st.info("لا توجد بنود تقييم لهذا المستوى بعد.")
+            # تحميل البنود لمعرفة هل كل بند قابل للعرض أم لا
+            cursor.execute("SELECT question, is_visible_to_user FROM supervisor_criteria")
+            visibility_map = {row['question']: row['is_visible_to_user'] for row in cursor.fetchall()}
+
+            # حذف البنود غير القابلة للعرض إن وجدت
+            df = df[df['question'].isin(visibility_map)]
+
+            pivoted = df.pivot_table(index="student", columns="question", values="score", aggfunc='sum').fillna(0)
+            pivoted = pivoted.reindex(my_users, fill_value=0)
+
+            # إضافة عمود يوضّح هل هذا البند مرئي للمستخدم أم لا
+            renamed_cols = {q: f"{q} (عرض للمستخدم: {'نعم' if visibility_map[q] else 'لا'})" for q in pivoted.columns}
+            pivoted.rename(columns=renamed_cols, inplace=True)
+
+            pivoted["📊 المجموع"] = pivoted.sum(axis=1)
+            st.dataframe(pivoted.reset_index(), use_container_width=True)
     except Exception as e:
-        st.error(f"❌ حدث خطأ أثناء جلب البنود الخاصة بالمستوى: {e}")
+        st.error(f"❌ خطأ في تحميل البيانات: {e}")
+
+# ===== تبويب 4: تجميعي بند =====
+with tabs[3]:
+    st.subheader("📌 تجميع حسب بند معين")
+    col1, col2 = st.columns(2)
+    with col1:
+        start = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7), key="start_criteria")
+    with col2:
+        end = st.date_input("إلى تاريخ", datetime.today().date(), key="end_criteria")
+
+    try:
+        cursor.execute("""
+            SELECT student, question, score
+            FROM daily_evaluations
+            WHERE DATE(timestamp) BETWEEN %s AND %s
+        """, (start, end))
+        df = pd.DataFrame(cursor.fetchall())
+
+        if df.empty:
+            st.info("ℹ️ لا توجد بيانات خلال الفترة المحددة.")
+        else:
+            available_questions = df["question"].unique().tolist()
+            selected_q = st.selectbox("اختر البند", available_questions)
+
+            df_q = df[df["question"] == selected_q].groupby("student")["score"].sum()
+            df_q = df_q.reindex(my_users, fill_value=0)
+            st.dataframe(df_q.reset_index().rename(columns={"student": "الطالب", "score": "📊 المجموع"}))
+    except Exception as e:
+        st.error(f"❌ خطأ في تحميل البيانات: {e}")
+
+# ===== تبويب 5: تقرير فردي =====
+with tabs[4]:
+    st.subheader("🧍‍♂️ تقرير مستخدم محدد")
+    col1, col2 = st.columns(2)
+    with col1:
+        start_ind = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7), key="start_ind")
+    with col2:
+        end_ind = st.date_input("إلى تاريخ", datetime.today().date(), key="end_ind")
+
+    try:
+        cursor.execute("""
+            SELECT student, DATE(timestamp) AS التاريخ, question AS البند, score AS الدرجة, free_text AS "إجابة نصية"
+            FROM daily_evaluations
+            WHERE DATE(timestamp) BETWEEN %s AND %s
+        """, (start_ind, end_ind))
+        df = pd.DataFrame(cursor.fetchall())
+
+        if df.empty:
+            st.info("ℹ️ لا توجد بيانات خلال الفترة المحددة.")
+        else:
+            available_students = df["student"].unique().tolist()
+            selected_student = st.selectbox("اختر المستخدم", available_students)
+            user_data = df[df["student"] == selected_student]
+            st.dataframe(user_data.reset_index(drop=True))
+    except Exception as e:
+        st.error(f"❌ فشل في تحميل البيانات: {e}")
+
+# ===== تبويب 6: رسوم بيانية =====
+with tabs[5]:
+    st.subheader("📈 توزيع المجموع")
+    col1, col2 = st.columns(2)
+    with col1:
+        start_chart = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7), key="start_chart")
+    with col2:
+        end_chart = st.date_input("إلى تاريخ", datetime.today().date(), key="end_chart")
+
+    try:
+        cursor.execute("""
+            SELECT student, score
+            FROM daily_evaluations
+            WHERE DATE(timestamp) BETWEEN %s AND %s
+        """, (start_chart, end_chart))
+        df = pd.DataFrame(cursor.fetchall())
+
+        if df.empty:
+            st.info("ℹ️ لا توجد بيانات خلال هذه الفترة.")
+        else:
+            grouped = df.groupby("student")["score"].sum()
+            grouped = grouped.reindex(my_users, fill_value=0)
+            fig = go.Figure(go.Pie(
+                labels=grouped.index,
+                values=grouped.values,
+                hole=0.4,
+                title="توزيع النقاط"
+            ))
+            st.plotly_chart(fig, use_container_width=True)
+    except Exception as e:
+        st.error(f"❌ فشل في تحميل أو عرض البيانات: {e}")
 
 # ========== التبويب الرابع: نقل المستويات ==========
 elif selected_tab == "نقل المستويات":
