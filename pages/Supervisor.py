@@ -5,6 +5,8 @@ import pytz
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
 
+
+riyadh_tz = pytz.timezone("Asia/Riyadh")
 # ===== إعداد الصفحة والتحقق من الجلسة =====
 st.set_page_config(page_title="📊 تقارير المشرف", page_icon="📊", layout="wide")
 
