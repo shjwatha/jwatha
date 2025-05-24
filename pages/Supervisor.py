@@ -421,33 +421,47 @@ with tabs[6]:
 with tabs[7]:
     st.subheader("📝 رصد النقاط من المشرف")
 
-    try:
-        cursor.execute("""
-            SELECT student, question, score
-            FROM supervisor_evaluations
-            WHERE student IN %s
-        """, ((tuple(my_users),)))
-        df = pd.DataFrame(cursor.fetchall())
+    # اختيار الطالب
+    if not my_users:
+        st.info("ℹ️ لا يوجد طلاب مرتبطين بك.")
+    else:
+        selected_student = st.selectbox("👤 اختر الطالب", my_users)
 
-        if df.empty:
-            st.info("ℹ️ لا توجد نقاط مسجلة من المشرف بعد.")
-        else:
-            # تحميل البنود لمعرفة حالة العرض للمستخدم
-            cursor.execute("SELECT question, is_visible_to_user FROM supervisor_criteria")
-            visibility_map = {row['question']: row['is_visible_to_user'] for row in cursor.fetchall()}
+        # تحميل البنود الخاصة بمستوى المشرف
+        try:
+            cursor.execute("SELECT question, max_score, is_visible_to_user FROM supervisor_criteria WHERE level = %s", (my_level,))
+            criteria = cursor.fetchall()
 
-            df = df[df['question'].isin(visibility_map)]
+            if not criteria:
+                st.info("ℹ️ لا توجد بنود تقييم لهذا المستوى.")
+            else:
+                with st.form("evaluation_form"):
+                    scores = {}
+                    for item in criteria:
+                        col1, col2 = st.columns([2, 1])
+                        with col1:
+                            scores[item['question']] = st.number_input(
+                                f"🔹 {item['question']} (من {item['max_score']})",
+                                min_value=0, max_value=item['max_score'], step=1,
+                                key=f"score_{item['question']}"
+                            )
+                        with col2:
+                            st.markdown(f"<br>📢 <b>يظهر للمستخدم؟</b> {'نعم' if item['is_visible_to_user'] else 'لا'}", unsafe_allow_html=True)
 
-            pivoted = df.pivot_table(index="student", columns="question", values="score", aggfunc='sum').fillna(0)
-            pivoted = pivoted.reindex(my_users, fill_value=0)
+                    submitted = st.form_submit_button("💾 حفظ التقييم")
 
-            renamed_cols = {}
-            for q in pivoted.columns:
-                visible = "نعم" if visibility_map.get(q, 0) else "لا"
-                renamed_cols[q] = f"{q} (عرض للمستخدم: {visible})"
-            pivoted.rename(columns=renamed_cols, inplace=True)
+                    if submitted:
+                        timestamp_now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                        try:
+                            for q, s in scores.items():
+                                cursor.execute("""
+                                    INSERT INTO supervisor_evaluations (timestamp, student, supervisor, question, score)
+                                    VALUES (%s, %s, %s, %s, %s)
+                                """, (timestamp_now, selected_student, username, q, s))
+                            conn.commit()
+                            st.success("✅ تم حفظ التقييم.")
+                        except Exception as e:
+                            st.error(f"❌ حدث خطأ أثناء الحفظ: {e}")
 
-            pivoted["📊 المجموع"] = pivoted.sum(axis=1)
-            st.dataframe(pivoted.reset_index(), use_container_width=True)
-    except Exception as e:
-        st.error(f"❌ فشل في تحميل نقاط المشرف: {e}")
+        except Exception as e:
+            st.error(f"❌ فشل في تحميل البنود: {e}")
