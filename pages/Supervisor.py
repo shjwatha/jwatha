@@ -235,21 +235,23 @@ with tabs[2]:
     with col2:
         end_date_all = st.date_input("إلى تاريخ", datetime.today().date(), key="end_all")
 
-    if not merged_df.empty:
-        merged_df["التاريخ"] = pd.to_datetime(merged_df["التاريخ"], format="%Y-%m-%d", errors="coerce")
-        df_filtered = merged_df[
-            (merged_df["التاريخ"] >= pd.to_datetime(start_date_all)) &
-            (merged_df["التاريخ"] <= pd.to_datetime(end_date_all))
-        ]
-        try:
-            data = df_filtered.drop(columns=["التاريخ", "username"], errors="ignore")
-            grouped = df_filtered.groupby("username")[data.columns].sum()
-            grouped = grouped.reindex(my_users, fill_value=0).reset_index()
-            st.dataframe(grouped, use_container_width=True)
-        except Exception as e:
-            st.error(f"❌ خطأ في تجميع البيانات: {e}")
-    else:
-        st.info("ℹ️ لا توجد بيانات متاحة.")
+    try:
+        cursor.execute("""
+            SELECT student, question, score
+            FROM daily_evaluations
+            WHERE DATE(timestamp) BETWEEN %s AND %s
+        """, (start_date_all, end_date_all))
+        df = pd.DataFrame(cursor.fetchall())
+
+        if df.empty:
+            st.info("ℹ️ لا توجد بيانات خلال الفترة المحددة.")
+        else:
+            pivoted = df.pivot_table(index="student", columns="question", values="score", aggfunc='sum').fillna(0)
+            pivoted = pivoted.reindex(my_users, fill_value=0)
+            pivoted["📊 المجموع"] = pivoted.sum(axis=1)
+            st.dataframe(pivoted.reset_index(), use_container_width=True)
+    except Exception as e:
+        st.error(f"❌ خطأ في تحميل البيانات: {e}")
 
 # ===== تبويب 4: تجميعي بند =====
 with tabs[3]:
@@ -260,25 +262,25 @@ with tabs[3]:
     with col2:
         end = st.date_input("إلى تاريخ", datetime.today().date(), key="end_criteria")
 
-    if not merged_df.empty:
-        merged_df["التاريخ"] = pd.to_datetime(merged_df["التاريخ"], errors="coerce")
-        df_filtered = merged_df[
-            (merged_df["التاريخ"] >= pd.to_datetime(start)) &
-            (merged_df["التاريخ"] <= pd.to_datetime(end))
-        ]
-        all_cols = [c for c in df_filtered.columns if c not in ["التاريخ", "username"]]
-        if all_cols:
-            selected_col = st.selectbox("اختر البند", all_cols)
-            try:
-                summary = df_filtered.groupby("username")[selected_col].sum()
-                summary = summary.reindex(my_users, fill_value=0)
-                st.dataframe(summary)
-            except Exception as e:
-                st.error(f"❌ خطأ في تجميع البند: {e}")
+    try:
+        cursor.execute("""
+            SELECT student, question, score
+            FROM daily_evaluations
+            WHERE DATE(timestamp) BETWEEN %s AND %s
+        """, (start, end))
+        df = pd.DataFrame(cursor.fetchall())
+
+        if df.empty:
+            st.info("ℹ️ لا توجد بيانات خلال الفترة المحددة.")
         else:
-            st.warning("⚠️ لا توجد بنود متاحة.")
-    else:
-        st.info("ℹ️ لا توجد بيانات.")
+            available_questions = df["question"].unique().tolist()
+            selected_q = st.selectbox("اختر البند", available_questions)
+
+            df_q = df[df["question"] == selected_q].groupby("student")["score"].sum()
+            df_q = df_q.reindex(my_users, fill_value=0)
+            st.dataframe(df_q.reset_index().rename(columns={"student": "الطالب", "score": "📊 المجموع"}))
+    except Exception as e:
+        st.error(f"❌ خطأ في تحميل البيانات: {e}")
 
 # ===== تبويب 5: تقرير فردي =====
 with tabs[4]:
@@ -289,19 +291,23 @@ with tabs[4]:
     with col2:
         end_ind = st.date_input("إلى تاريخ", datetime.today().date(), key="end_ind")
 
-    if not merged_df.empty:
-        merged_df["التاريخ"] = pd.to_datetime(merged_df["التاريخ"], errors="coerce")
-        df_filtered = merged_df[
-            (merged_df["التاريخ"] >= pd.to_datetime(start_ind)) &
-            (merged_df["التاريخ"] <= pd.to_datetime(end_ind))
-        ]
-        available_users = df_filtered["username"].unique().tolist()
-        if available_users:
-            selected_user = st.selectbox("اختر المستخدم", available_users)
-            user_data = df_filtered[df_filtered["username"] == selected_user]
-            st.dataframe(user_data.reset_index(drop=True))
+    try:
+        cursor.execute("""
+            SELECT student, DATE(timestamp) AS التاريخ, question AS البند, score AS الدرجة, free_text AS "إجابة نصية"
+            FROM daily_evaluations
+            WHERE DATE(timestamp) BETWEEN %s AND %s
+        """, (start_ind, end_ind))
+        df = pd.DataFrame(cursor.fetchall())
+
+        if df.empty:
+            st.info("ℹ️ لا توجد بيانات خلال الفترة المحددة.")
         else:
-            st.warning("⚠️ لا توجد بيانات.")
+            available_students = df["student"].unique().tolist()
+            selected_student = st.selectbox("اختر المستخدم", available_students)
+            user_data = df[df["student"] == selected_student]
+            st.dataframe(user_data.reset_index(drop=True))
+    except Exception as e:
+        st.error(f"❌ فشل في تحميل البيانات: {e}")
 
 # ===== تبويب 6: رسوم بيانية =====
 with tabs[5]:
@@ -312,27 +318,28 @@ with tabs[5]:
     with col2:
         end_chart = st.date_input("إلى تاريخ", datetime.today().date(), key="end_chart")
 
-    if not merged_df.empty:
-        merged_df["التاريخ"] = pd.to_datetime(merged_df["التاريخ"], errors="coerce")
-        df_chart = merged_df[
-            (merged_df["التاريخ"] >= pd.to_datetime(start_chart)) &
-            (merged_df["التاريخ"] <= pd.to_datetime(end_chart))
-        ]
-        try:
-            chart_data = df_chart.drop(columns=["التاريخ", "username"], errors="ignore")
-            grouped = df_chart.groupby("username")[chart_data.columns].sum()
-            grouped["المجموع"] = grouped.sum(axis=1)
+    try:
+        cursor.execute("""
+            SELECT student, score
+            FROM daily_evaluations
+            WHERE DATE(timestamp) BETWEEN %s AND %s
+        """, (start_chart, end_chart))
+        df = pd.DataFrame(cursor.fetchall())
+
+        if df.empty:
+            st.info("ℹ️ لا توجد بيانات خلال هذه الفترة.")
+        else:
+            grouped = df.groupby("student")["score"].sum()
+            grouped = grouped.reindex(my_users, fill_value=0)
             fig = go.Figure(go.Pie(
                 labels=grouped.index,
-                values=grouped["المجموع"],
+                values=grouped.values,
                 hole=0.4,
                 title="توزيع النقاط"
             ))
             st.plotly_chart(fig, use_container_width=True)
-        except Exception as e:
-            st.error(f"❌ خطأ في عرض الرسم البياني: {e}")
-    else:
-        st.info("ℹ️ لا توجد بيانات.")
+    except Exception as e:
+        st.error(f"❌ فشل في تحميل أو عرض البيانات: {e}")
 
 # ===== تبويب 7: 📌 رصد الإنجاز =====
 with tabs[6]:
