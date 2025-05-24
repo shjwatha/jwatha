@@ -85,7 +85,8 @@ tabs = st.tabs([
     "📝 إدخال البيانات", 
     "💬 المحادثات", 
     "📊 تقارير المجموع", 
-    "🗒️ الإنجازات"
+    "🗒️ الإنجازات",
+    "🏅 نقاط تقييم المشرف"
 ])
 
 # ===================== تبويب 1: إدخال البيانات =====================
@@ -439,3 +440,38 @@ with tabs[3]:
 # ===================== إغلاق الاتصال =====================
 cursor.close()
 conn.close()
+
+
+# ===================== تبويب 5: نقاط المشرف =====================
+with tabs[4]:
+    st.subheader("🏅 نقاط تقييم المشرف")
+
+    try:
+        # جلب البنود التي يسمح بعرضها للمستخدم
+        cursor.execute("""
+            SELECT question FROM supervisor_criteria
+            WHERE is_visible_to_user = TRUE
+        """)
+        visible_criteria = [row["question"] for row in cursor.fetchall()]
+
+        # جلب تقييم المشرف فقط للبنود المسموح عرضها
+        cursor.execute("""
+            SELECT DATE(timestamp) AS التاريخ, question AS البند, score AS الدرجة
+            FROM supervisor_evaluations
+            WHERE student = %s
+            ORDER BY timestamp DESC
+        """, (username,))
+        rows = cursor.fetchall()
+        df = pd.DataFrame(rows)
+
+        if df.empty or not visible_criteria:
+            st.info("ℹ️ لا توجد نقاط متاحة للعرض من المشرف.")
+        else:
+            df = df[df["البند"].isin(visible_criteria)]
+            pivoted = df.pivot_table(index="التاريخ", columns="البند", values="الدرجة", aggfunc='sum').fillna(0)
+            pivoted.insert(0, "📊 المجموع", pivoted.sum(axis=1))
+
+            st.markdown("### 🧾 النقاط التي رصدها المشرف والمسموح لك برؤيتها")
+            st.dataframe(pivoted, use_container_width=True)
+    except Exception as e:
+        st.error(f"❌ فشل في تحميل نقاط المشرف: {e}")
