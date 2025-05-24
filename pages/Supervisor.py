@@ -350,7 +350,8 @@ with tabs[6]:
     
     # 1. جلب قائمة الإنجازات (managed by SuperAdmin)
     try:
-        ach_df = pd.read_sql("SELECT id, achievement FROM achievements_list WHERE is_deleted = FALSE", conn)
+        ach_df = pd.read_sql("SELECT id, achievement FROM achievements_list", conn)
+
         achievements = ach_df.to_dict('records')
     except Exception as e:
         st.error(f"❌ تعذر تحميل قائمة الإنجازات: {e}")
