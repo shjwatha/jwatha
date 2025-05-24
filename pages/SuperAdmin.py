@@ -15,41 +15,41 @@ conn = pymysql.connect(
 )
 cursor = conn.cursor(pymysql.cursors.DictCursor)
 
-# التحقق من تسجيل الدخول والصلاحيات
+# التحقق من تسجيل الدخول
 if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
     st.warning("🔐 يجب تسجيل الدخول أولاً")
     st.stop()
 
-elif st.session_state["permissions"] != "super_admin":
+if st.session_state["permissions"] != "super_admin":
     st.error("🚫 لا تملك صلاحية الوصول إلى هذه الصفحة.")
     st.stop()
 
-else:
-    st.title("🎛️ لوحة تحكم المدير العام")
+st.title("🎛️ لوحة تحكم المدير العام")
 
-    # تحميل المستويات من قاعدة البيانات
-    cursor.execute("SELECT * FROM levels")
-    levels = cursor.fetchall()
+# تحميل المستويات من قاعدة البيانات
+cursor.execute("SELECT * FROM levels")
+levels = cursor.fetchall()
 
-    selected_tab = st.radio("📂 اختر القسم", [
-        "إدارة الأعضاء",
-        "إعداد نموذج التقييم الذاتي",
-        "نقاطي (تقييم من المشرف)",
-        "نقل المستويات",
-        "رصد إنجازات المستويات"
-    ], horizontal=True)
+# 🧭 التبويبات
+selected_tab = st.radio("📂 اختر القسم", [
+    "إدارة الأعضاء",
+    "إعداد نموذج التقييم الذاتي",
+    "نقاطي (تقييم من المشرف)",
+    "نقل المستويات",
+    "إدارة مسميات الإنجاز"  # 👈 التبويب الجديد
+], horizontal=True)
 
-    # ========== التبويب الأول: إدارة الأعضاء ==========
-    if selected_tab == "إدارة الأعضاء":
-        st.header("👥 إدارة الأعضاء")
+# ========== التبويب الأول: إدارة الأعضاء ==========
+if selected_tab == "إدارة الأعضاء":
+    st.header("👥 إدارة الأعضاء")
 
-        st.markdown("""
-        ### 📌 إختر نوع العضو لعرض القائمة:
-        """)
+    st.markdown("""
+    ### 📌 إختر نوع العضو لعرض القائمة:
+    """)
 
-        choice = st.selectbox("نوع الأعضاء", ["المستوى", "الآدمن", "السوبر مشرف", "المشرف", "المستخدم"], key="user_filter")
+    choice = st.selectbox("نوع الأعضاء", ["المستوى", "الآدمن", "السوبر مشرف", "المشرف", "المستخدم"], key="user_filter")
 
-        admins, users = [], []
+    admins, users = [], []
 
     if choice == "المستوى":
         selected_level = st.selectbox("اختر المستوى", [lvl['level_name'] for lvl in levels], key="view_level")
@@ -436,54 +436,60 @@ elif selected_tab == "نقل المستويات":
                 st.success("✅ تم نقل المستخدم")
 
 
-# ========== التبويب الخامس: رصد إنجازات المستويات ==========
-elif selected_tab == "رصد إنجازات المستويات":
-    st.header("🏆 إعداد إنجازات لكل مستوى")
+
+elif selected_tab == "إدارة مسميات الإنجاز":
+    st.header("🎯 إدارة مسميات الإنجاز")
 
     st.subheader("➕ إضافة إنجاز جديد")
     with st.form("add_achievement_form"):
-        level = st.selectbox("اختر المستوى", [lvl['level_name'] for lvl in levels], key="achieve_level")
-        achievement = st.text_input("🏅 عنوان الإنجاز")
-        submit_ach = st.form_submit_button("➕ أضف الإنجاز")
+        new_achievement = st.text_input("🏆 اسم الإنجاز الجديد")
+        add_button = st.form_submit_button("✅ أضف الإنجاز")
 
-        if submit_ach and achievement:
+        if add_button and new_achievement.strip():
             try:
-                cursor.execute("INSERT INTO achievements_list (level, achievement) VALUES (%s, %s)", (level, achievement))
+                cursor.execute("INSERT INTO achievements_list (achievement) VALUES (%s)", (new_achievement.strip(),))
                 conn.commit()
-                st.success("✅ تم حفظ الإنجاز")
+                st.success("✅ تم إضافة الإنجاز بنجاح.")
                 st.rerun()
             except Exception as e:
-                st.error(f"❌ خطأ أثناء حفظ الإنجاز: {e}")
+                st.error(f"❌ حدث خطأ أثناء إضافة الإنجاز: {e}")
+        elif add_button:
+            st.warning("⚠️ يرجى إدخال اسم الإنجاز.")
 
-    st.subheader("📋 عرض الإنجازات حسب المستوى")
-    selected_level = st.selectbox("اختر المستوى لعرض الإنجازات", [lvl['level_name'] for lvl in levels], key="achieve_view_level")
-
+    st.subheader("📋 قائمة الإنجازات الحالية")
     try:
-        cursor.execute("SELECT id, achievement FROM achievements_list WHERE level = %s", (selected_level,))
-        rows = cursor.fetchall()
-        if not rows:
-            st.info("ℹ️ لا توجد إنجازات لهذا المستوى.")
+        cursor.execute("SELECT id, achievement FROM achievements_list")
+        achievements = cursor.fetchall()
+        if not achievements:
+            st.info("ℹ️ لا توجد إنجازات حتى الآن.")
         else:
-            for row in rows:
-                with st.expander(f"🏅 {row['achievement']}"):
-                    new_title = st.text_input("✏️ تعديل العنوان", value=row['achievement'], key=f"edit_ach_{row['id']}")
-                    if st.button("📝 تحديث", key=f"update_ach_{row['id']}"):
+            for ach in achievements:
+                col1, col2, col3 = st.columns([3, 1, 1])
+                with col1:
+                    updated_name = st.text_input("🏷️ اسم الإنجاز", value=ach["achievement"], key=f"ach_{ach['id']}")
+                with col2:
+                    if st.button("📝 تعديل", key=f"edit_{ach['id']}"):
                         try:
-                            cursor.execute("UPDATE achievements_list SET achievement = %s WHERE id = %s", (new_title, row['id']))
+                            cursor.execute("UPDATE achievements_list SET achievement = %s WHERE id = %s", (updated_name.strip(), ach["id"]))
                             conn.commit()
-                            st.success("✅ تم التحديث")
+                            st.success("✅ تم تعديل الإنجاز.")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"❌ خطأ أثناء التحديث: {e}")
+                            st.error(f"❌ فشل في تعديل الإنجاز: {e}")
+                with col3:
+                    if st.button("🗑️ حذف", key=f"del_{ach['id']}"):
+                        try:
+                            cursor.execute("DELETE FROM achievements_list WHERE id = %s", (ach["id"],))
+                            conn.commit()
+                            st.success("✅ تم حذف الإنجاز.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ فشل في حذف الإنجاز: {e}")
+    except Exception as e:
+        st.error(f"❌ فشل في تحميل الإنجازات: {e}")
 
-                    if st.button("🗑️ حذف", key=f"delete_ach_{row['id']}"):
-                        try:
-                            cursor.execute("DELETE FROM achievements_list WHERE id = %s", (row['id'],))
-                            conn.commit()
-                            st.success("🗑️ تم حذف الإنجاز")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ خطأ أثناء الحذف: {e}")
+
+
 
 
 # ========== إغلاق الاتصال ==========
