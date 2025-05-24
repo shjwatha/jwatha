@@ -437,10 +437,6 @@ with tabs[3]:
     else:
         st.info("ℹ️ لم يتم تسجيل أي إنجازات بعد.")
 
-# ===================== إغلاق الاتصال =====================
-cursor.close()
-conn.close()
-
 
 # ===================== تبويب 5: نقاط المشرف =====================
 with tabs[4]:
@@ -475,3 +471,9 @@ with tabs[4]:
             st.dataframe(pivoted, use_container_width=True)
     except Exception as e:
         st.error(f"❌ فشل في تحميل نقاط المشرف: {e}")
+
+
+# ===================== إغلاق الاتصال =====================
+cursor.close()
+conn.close()
+
