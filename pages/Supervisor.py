@@ -56,6 +56,7 @@ try:
 except Exception as e:
     st.error(f"❌ فشل في التحقق من مستوى المشرف أو السوبر مشرف: {e}")
     st.stop()
+
 # ===== تحميل المستخدمين والمشرفين =====
 all_user_options = []
 
@@ -100,8 +101,8 @@ if unread_senders:
     names_str = " - ".join(unread_senders)
     st.markdown(
         f"""
-        <div style='background-color:#FFF4CC; padding:12px; border-radius:6px; border:1px solid #FFD700; margin-bottom: 20px;'>
-            <span style='color:red; font-weight:bold; font-size:16px;'>📨 لديك رسائل جديدة من: {names_str}</span>
+        <div style="background-color:#FFCCCC; padding:10px; border-radius:5px; border: 1px solid red; margin-bottom: 15px;">
+            <b>📨 لديك رسائل جديدة من: {names_str}</b>
         </div>
         """,
         unsafe_allow_html=True
@@ -120,22 +121,32 @@ tabs = st.tabs([
 
 # ===== تبويب 1: تقرير إجمالي =====
 with tabs[0]:
-    st.subheader("📄 تقرير إجمالي")
+    st.subheader("📄 تقرير إجمالي من تقييمات المستخدمين")
     col1, col2 = st.columns(2)
     with col1:
         start_date = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7))
     with col2:
         end_date = st.date_input("إلى تاريخ", datetime.today().date())
 
-    if not merged_df.empty and "التاريخ" in merged_df.columns:
-        merged_df["التاريخ"] = pd.to_datetime(merged_df["التاريخ"], format="%Y-%m-%d", errors="coerce")
-        filtered_df = merged_df[
-            (merged_df["التاريخ"] >= pd.to_datetime(start_date)) &
-            (merged_df["التاريخ"] <= pd.to_datetime(end_date))
-        ]
-        st.dataframe(filtered_df, use_container_width=True)
-    else:
-        st.info("ℹ️ لا توجد بيانات متاحة.")
+    try:
+        cursor.execute("""
+            SELECT student, DATE(timestamp) AS التاريخ, question AS البند, score AS الدرجة
+            FROM daily_evaluations
+            WHERE DATE(timestamp) BETWEEN %s AND %s
+        """, (start_date, end_date))
+        rows = cursor.fetchall()
+        df = pd.DataFrame(rows)
+
+        if df.empty:
+            st.info("ℹ️ لا توجد بيانات متاحة.")
+        else:
+            # حذف البنود النصية (score=0 وfree_text غير فارغة) إن أردت فقط البنود القابلة للتقدير
+            pivoted = df.pivot_table(index=["student", "التاريخ"], columns="البند", values="الدرجة", aggfunc='sum').fillna(0)
+            pivoted["📊 المجموع"] = pivoted.sum(axis=1)
+            pivoted = pivoted.reset_index()
+            st.dataframe(pivoted, use_container_width=True)
+    except Exception as e:
+        st.error(f"❌ فشل في تحميل البيانات: {e}")
 
 # ===== تبويب 2: المحادثات =====
 with tabs[1]:
