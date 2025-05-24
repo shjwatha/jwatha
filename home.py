@@ -41,8 +41,7 @@ if not st.session_state["authenticated"]:
                 SELECT * FROM users 
                 WHERE (username = %s OR full_name = %s) AND password = %s AND is_deleted = 0
             """, (username, username, password))
-            user = cursor.fetchone()
-
+            
             user = cursor.fetchone()
 
             if user:
