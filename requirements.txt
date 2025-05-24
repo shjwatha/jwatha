@@ -8,3 +8,4 @@ hijri-converter
 supabase
 httpx
 pymysql
+pytz
