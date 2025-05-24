@@ -1,8 +1,11 @@
 import streamlit as st
 import pandas as pd
 import pymysql
+import pytz
 from datetime import datetime, timedelta
 from hijri_converter import Gregorian
+from datetime import datetime
+
 
 # ===================== إعداد الصفحة والتحقق من الجلسة =====================
 st.set_page_config(page_title="تقييم اليوم", page_icon="📋", layout="wide")
@@ -109,7 +112,7 @@ with tabs[0]:
     st.markdown(f"<h3 style='color:#0000FF; font-weight:bold;'>👋 أهلاً {username} | مجموعتك: {mentor_name} | مستواك: {user_level}</h3>", unsafe_allow_html=True)
     st.markdown("<h4 style='color:#0000FF; font-weight:bold;'>📝 المحاسبة الذاتية اليومية (نموذج مخصص)</h4>", unsafe_allow_html=True)
 
-    today = datetime.today().date()
+    today = datetime.now(riyadh_tz).date()
     hijri_dates = []
     for i in range(7):
         g_date = today - timedelta(days=i)
@@ -216,7 +219,7 @@ with tabs[0]:
                             INSERT INTO daily_evaluations (timestamp, student, supervisor, question, score, free_text, academic_year)
                             VALUES (%s, %s, %s, %s, %s, %s)
                         """, (
-                            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            datetime.now(riyadh_tz).strftime("%Y-%m-%d %H:%M:%S"),
                             eval_row[1], eval_row[2], eval_row[3], eval_row[4], eval_row[5], academic_year
                         ))
                     conn.commit()
@@ -306,7 +309,7 @@ with tabs[1]:
 
         if st.button("📨 إرسال الرسالة"):
             if new_msg.strip():
-                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                ts = datetime.now(riyadh_tz).strftime("%Y-%m-%d %H:%M:%S")
                 try:
                     cursor.execute(
                         "INSERT INTO chat_messages (timestamp, sender, receiver, message, read_by_receiver) VALUES (%s, %s, %s, %s, %s)",
@@ -329,9 +332,9 @@ with tabs[2]:
 
     col1, col2 = st.columns(2)
     with col1:
-        start_date = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7))
+        start_date = st.date_input("من تاريخ", datetime.now(riyadh_tz).date() - timedelta(days=7))
     with col2:
-        end_date = st.date_input("إلى تاريخ", datetime.today().date())
+        end_date = st.date_input("إلى تاريخ", datetime.now(riyadh_tz).date())
 
     # اختيار النموذج
     try:
