@@ -213,7 +213,7 @@ with tabs[0]:
                     for eval_row in responses:
                         academic_year = f"{selected_date.year}-{selected_date.year + 1}"
                         cursor.execute("""
-                            INSERT INTO daily_evaluations (timestamp, student, supervisor, question, score, free_text)
+                            INSERT INTO daily_evaluations (timestamp, student, supervisor, question, score, free_text, academic_year)
                             VALUES (%s, %s, %s, %s, %s, %s)
                         """, (
                             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
