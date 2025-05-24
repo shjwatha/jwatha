@@ -419,9 +419,11 @@ with tabs[3]:
 
     try:
         df_ach = pd.read_sql("""
-            SELECT timestamp, achievement, supervisor 
-            FROM student_achievements 
-            WHERE student = %s ORDER BY timestamp DESC
+            SELECT sa.timestamp, al.achievement, sa.supervisor
+            FROM student_achievements sa
+            JOIN achievements_list al ON sa.achievement_id = al.id
+            WHERE sa.student = %s
+            ORDER BY sa.timestamp DESC
         """, conn, params=(username,))
     except Exception as e:
         st.error(f"❌ فشل في تحميل الإنجازات: {e}")
