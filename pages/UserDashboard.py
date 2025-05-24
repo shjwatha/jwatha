@@ -219,11 +219,12 @@ with tabs[0]:
                         academic_year = f"{selected_date.year}-{selected_date.year + 1}"
                         cursor.execute("""
                             INSERT INTO daily_evaluations (timestamp, student, supervisor, question, score, free_text, academic_year)
-                            VALUES (%s, %s, %s, %s, %s, %s)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s)
                         """, (
                             datetime.now(riyadh_tz).strftime("%Y-%m-%d %H:%M:%S"),
                             eval_row[1], eval_row[2], eval_row[3], eval_row[4], eval_row[5], academic_year
                         ))
+
                     conn.commit()
                     st.success("✅ تم حفظ التقييم بنجاح.")
                     st.rerun()
