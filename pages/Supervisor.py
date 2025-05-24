@@ -474,10 +474,13 @@ with tabs[7]:
                         timestamp_now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
                         try:
                             for q, s in scores.items():
+                                academic_year = f"{datetime.utcnow().year}-{datetime.utcnow().year + 1}"
                                 cursor.execute("""
-                                    INSERT INTO supervisor_evaluations (timestamp, student, supervisor, question, score)
+                                    INSERT INTO supervisor_evaluations (timestamp, student, supervisor, question, score, academic_year)
+
                                     VALUES (%s, %s, %s, %s, %s)
-                                """, (timestamp_now, selected_student, username, q, s))
+                                """, (timestamp_now, selected_student, username, q, s, academic_year))
+
                             conn.commit()
                             st.success("✅ تم حفظ التقييم.")
                         except Exception as e:
