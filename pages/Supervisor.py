@@ -121,7 +121,8 @@ tabs = st.tabs([
 
 # ===== تبويب 1: تقرير إجمالي =====
 with tabs[0]:
-    st.subheader("📄 تقرير إجمالي من تقييمات المستخدمين")
+    st.subheader("📄 تقرير إجمالي لكل طالب خلال فترة محددة")
+    
     col1, col2 = st.columns(2)
     with col1:
         start_date = st.date_input("من تاريخ", datetime.today().date() - timedelta(days=7))
@@ -130,7 +131,7 @@ with tabs[0]:
 
     try:
         cursor.execute("""
-            SELECT student, DATE(timestamp) AS التاريخ, question AS البند, score AS الدرجة
+            SELECT student, score
             FROM daily_evaluations
             WHERE DATE(timestamp) BETWEEN %s AND %s
         """, (start_date, end_date))
@@ -138,13 +139,12 @@ with tabs[0]:
         df = pd.DataFrame(rows)
 
         if df.empty:
-            st.info("ℹ️ لا توجد بيانات متاحة.")
+            st.info("ℹ️ لا توجد بيانات تقييم خلال هذه الفترة.")
         else:
-            # حذف البنود النصية (score=0 وfree_text غير فارغة) إن أردت فقط البنود القابلة للتقدير
-            pivoted = df.pivot_table(index=["student", "التاريخ"], columns="البند", values="الدرجة", aggfunc='sum').fillna(0)
-            pivoted["📊 المجموع"] = pivoted.sum(axis=1)
-            pivoted = pivoted.reset_index()
-            st.dataframe(pivoted, use_container_width=True)
+            df_grouped = df.groupby("student")["score"].sum().reset_index()
+            df_grouped.rename(columns={"student": "الطالب", "score": "📊 مجموع الدرجات"}, inplace=True)
+            df_grouped = df_grouped.sort_values(by="📊 مجموع الدرجات", ascending=False)
+            st.dataframe(df_grouped, use_container_width=True)
     except Exception as e:
         st.error(f"❌ فشل في تحميل البيانات: {e}")
 
