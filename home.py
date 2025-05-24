@@ -37,7 +37,12 @@ if not st.session_state["authenticated"]:
 
         if submitted:
             # تحقق من جدول المستخدمين
-            cursor.execute("SELECT * FROM users WHERE username = %s AND password = %s AND is_deleted = 0", (username, password))
+            cursor.execute("""
+                SELECT * FROM users 
+                WHERE (username = %s OR full_name = %s) AND password = %s AND is_deleted = 0
+            """, (username, username, password))
+            user = cursor.fetchone()
+
             user = cursor.fetchone()
 
             if user:
@@ -58,7 +63,11 @@ if not st.session_state["authenticated"]:
                     st.stop()
 
             # تحقق من جدول الأدمن (admin / supervisor / sp)
-            cursor.execute("SELECT * FROM admins WHERE username = %s AND password = %s AND is_deleted = 0", (username, password))
+            cursor.execute("""
+                SELECT * FROM admins 
+                WHERE (username = %s OR full_name = %s) AND password = %s AND is_deleted = 0
+            """, (username, username, password))
+
             admin = cursor.fetchone()
 
             if admin:
@@ -85,7 +94,11 @@ if not st.session_state["authenticated"]:
                     st.stop()
 
             # تحقق من جدول السوبر آدمن
-            cursor.execute("SELECT * FROM super_admins WHERE username = %s AND password = %s", (username, password))
+            cursor.execute("""
+                SELECT * FROM super_admins 
+                WHERE (username = %s OR full_name = %s) AND password = %s
+            """, (username, username, password))
+
             super_admin = cursor.fetchone()
 
             if super_admin:
