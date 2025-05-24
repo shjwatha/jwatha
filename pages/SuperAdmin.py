@@ -39,102 +39,106 @@ selected_tab = st.radio("📂 اختر القسم", [
     "إدارة مسميات الإنجاز"  # 👈 التبويب الجديد
 ], horizontal=True)
 
-    # ========== التبويب الأول: إدارة الأعضاء ==========
-    if selected_tab == "إدارة الأعضاء":
-        st.header("👥 إدارة الأعضاء")
+# ========== التبويب الأول: إدارة الأعضاء ==========
+if selected_tab == "إدارة الأعضاء":
+    st.header("👥 إدارة الأعضاء")
 
-        st.markdown("""
-        ### 📌 إختر نوع العضو لعرض القائمة:
-        """)
+    st.markdown("""
+    ### 📌 إختر نوع العضو لعرض القائمة:
+    """)
 
-        choice = st.selectbox("نوع الأعضاء", ["المستوى", "الآدمن", "السوبر مشرف", "المشرف", "المستخدم"], key="user_filter")
+    choice = st.selectbox("نوع الأعضاء", ["المستوى", "الآدمن", "السوبر مشرف", "المشرف", "المستخدم"], key="user_filter")
 
-        admins, users = [], []
+    admins, users = [], []
 
-        if choice == "المستوى":
-            selected_level = st.selectbox("اختر المستوى", [lvl['level_name'] for lvl in levels], key="view_level")
-            cursor.execute("SELECT * FROM admins WHERE level = %s AND is_deleted = FALSE", (selected_level,))
-            admins = cursor.fetchall()
-            cursor.execute("SELECT * FROM users WHERE level = %s AND is_deleted = FALSE", (selected_level,))
-            users = cursor.fetchall()
+    if choice == "المستوى":
+        selected_level = st.selectbox("اختر المستوى", [lvl['level_name'] for lvl in levels], key="view_level")
+        cursor.execute("SELECT * FROM admins WHERE level = %s AND is_deleted = FALSE", (selected_level,))
+        admins = cursor.fetchall()
+        cursor.execute("SELECT * FROM users WHERE level = %s AND is_deleted = FALSE", (selected_level,))
+        users = cursor.fetchall()
 
-        elif choice in ["الآدمن", "السوبر مشرف", "المشرف"]:
-            role_map = {
-                "الآدمن": "admin",
-                "السوبر مشرف": "sp",
-                "المشرف": "supervisor"
-            }
-            role = role_map[choice]
-            cursor.execute("SELECT * FROM admins WHERE role = %s AND is_deleted = FALSE", (role,))
-            admins = cursor.fetchall()
+    elif choice in ["الآدمن", "السوبر مشرف", "المشرف"]:
+        role_map = {
+            "الآدمن": "admin",
+            "السوبر مشرف": "sp",
+            "المشرف": "supervisor"
+        }
+        role = role_map[choice]
+        cursor.execute("SELECT * FROM admins WHERE role = %s AND is_deleted = FALSE", (role,))
+        admins = cursor.fetchall()
 
-        elif choice == "المستخدم":
-            cursor.execute("SELECT * FROM users WHERE is_deleted = FALSE")
-            users = cursor.fetchall()
+    elif choice == "المستخدم":
+        cursor.execute("SELECT * FROM users WHERE is_deleted = FALSE")
+        users = cursor.fetchall()
 
-        # عرض الجداول مع أدوات التحكم
-        if admins:
-            st.subheader("👨‍💼 الإداريون")
-            for admin in admins:
-                with st.expander(f"👤 {admin['full_name']} - {admin['username']} ({admin['role']})"):
-                    st.markdown(f"المستوى: {admin['level']}")
-                    col1, col2 = st.columns([1, 1])
-                    with col1:
-                        if st.button(f"📝 تعديل {admin['username']}", key=f"edit_admin_{admin['id']}"):
-                            new_full_name = st.text_input("الاسم الكامل", value=admin['full_name'], key=f"full_name_edit_{admin['id']}")
-                            level_names = [lvl['level_name'] for lvl in levels]
-                            new_level = st.selectbox("المستوى", level_names, index=level_names.index(admin['level']) if admin['level'] in level_names else 0, key=f"level_edit_{admin['id']}")
-                            role_names = ["admin", "sp", "supervisor"]
-                            new_role = st.selectbox("الدور", role_names, index=role_names.index(admin['role']) if admin['role'] in role_names else 0, key=f"role_edit_{admin['id']}")
-                            if st.button(f"تحديث", key=f"update_admin_{admin['id']}"):
-                                cursor.execute("SELECT 1 FROM admins WHERE username = %s AND full_name = %s AND id != %s", (new_full_name, new_full_name, admin['id']))
-                                conflict_admin = cursor.fetchone()
-                                cursor.execute("SELECT 1 FROM users WHERE username = %s OR full_name = %s", (new_full_name, new_full_name))
-                                conflict_user = cursor.fetchone()
-                                if conflict_admin or conflict_user:
-                                    st.warning("⚠️ الاسم الكامل لا يجب أن يطابق أي اسم مستخدم، والعكس كذلك.")
-                                else:
-                                    cursor.execute("UPDATE admins SET full_name = %s, level = %s, role = %s WHERE id = %s", (new_full_name, new_level, new_role, admin['id']))
-                                    conn.commit()
-                                    st.success("✅ تم التحديث")
-                                    st.rerun()
-                    with col2:
-                        if st.button(f"🗑️ حذف {admin['username']}", key=f"delete_admin_{admin['id']}"):
-                            cursor.execute("UPDATE admins SET is_deleted = TRUE WHERE id = %s", (admin['id'],))
-                            conn.commit()
-                            st.success("✅ تم حذف الإداري")
-                            st.rerun()
+    # عرض الجداول مع أدوات التحكم
+    if admins:
+        st.subheader("👨‍💼 الإداريون")
+        for admin in admins:
+            with st.expander(f"👤 {admin['full_name']} - {admin['username']} ({admin['role']})"):
+                st.markdown(f"المستوى: {admin['level']}")
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    if st.button(f"📝 تعديل {admin['username']}", key=f"edit_admin_{admin['id']}"):
+                        new_full_name = st.text_input("الاسم الكامل", value=admin['full_name'], key=f"full_name_edit_{admin['id']}")
+                        level_names = [lvl['level_name'] for lvl in levels]
+                        new_level = st.selectbox("المستوى", level_names, index=level_names.index(admin['level']) if admin['level'] in level_names else 0, key=f"level_edit_{admin['id']}")
+                        role_names = ["admin", "sp", "supervisor"]
+                        new_role = st.selectbox("الدور", role_names, index=role_names.index(admin['role']) if admin['role'] in role_names else 0, key=f"role_edit_{admin['id']}")
+                        if st.button(f"تحديث", key=f"update_admin_{admin['id']}"):
+                            cursor.execute("SELECT 1 FROM admins WHERE id != %s AND (username = %s OR full_name = %s)", (admin['id'], new_full_name, new_full_name))
+                            conflict_admin = cursor.fetchone()
+                            cursor.execute("SELECT 1 FROM users WHERE username = %s OR full_name = %s", (new_full_name, new_full_name))
+                            conflict_user = cursor.fetchone()
+                            if conflict_admin or conflict_user:
+                                st.warning("⚠️ الاسم الكامل لا يجب أن يطابق أي اسم مستخدم، والعكس كذلك.")
+                            else:
+                                cursor.execute("UPDATE admins SET full_name = %s, level = %s, role = %s WHERE id = %s", (new_full_name, new_level, new_role, admin['id']))
+                                conn.commit()
+                                st.success("✅ تم التحديث")
+                                st.rerun()
+                with col2:
+                    if st.button(f"🗑️ حذف {admin['username']}", key=f"delete_admin_{admin['id']}"):
+                        cursor.execute("UPDATE admins SET is_deleted = TRUE WHERE id = %s", (admin['id'],))
+                        conn.commit()
+                        st.success("✅ تم حذف الإداري")
+                        st.rerun()
 
-        if users:
-            st.subheader("👥 المستخدمون")
-            for user in users:
-                with st.expander(f"👤 {user['full_name']} - {user['username']}"):
-                    st.markdown(f"المستوى: {user['level']} | المشرف: {user['mentor']}")
-                    col1, col2 = st.columns([1, 1])
-                    with col1:
-                        if st.button(f"📝 تعديل {user['username']}", key=f"edit_user_{user['id']}"):
-                            new_full_name = st.text_input("الاسم الكامل", value=user['full_name'], key=f"full_name_user_{user['id']}")
-                            level_names = [lvl['level_name'] for lvl in levels]
-                            new_level = st.selectbox("المستوى", level_names, index=level_names.index(user['level']) if user['level'] in level_names else 0, key=f"level_user_{user['id']}")
-                            new_mentor = st.selectbox("المشرف", [user['mentor'] for user in users], key=f"mentor_user_{user['id']}")
-                            if st.button(f"تحديث", key=f"update_user_{user['id']}"):
-                                cursor.execute("SELECT 1 FROM users WHERE username = %s AND full_name = %s AND id != %s", (new_full_name, new_full_name, user['id']))
-                                conflict_user = cursor.fetchone()
-                                cursor.execute("SELECT 1 FROM admins WHERE username = %s OR full_name = %s", (new_full_name, new_full_name))
-                                conflict_admin = cursor.fetchone()
-                                if conflict_user or conflict_admin:
-                                    st.warning("⚠️ الاسم الكامل لا يجب أن يطابق أي اسم مستخدم، والعكس كذلك.")
-                                else:
-                                    cursor.execute("UPDATE users SET full_name = %s, level = %s, mentor = %s WHERE id = %s", (new_full_name, new_level, new_mentor, user['id']))
-                                    conn.commit()
-                                    st.success("✅ تم التحديث")
-                                    st.rerun()
-                    with col2:
-                        if st.button(f"🗑️ حذف {user['username']}", key=f"delete_user_{user['id']}"):
-                            cursor.execute("UPDATE users SET is_deleted = TRUE WHERE id = %s", (user['id'],))
-                            conn.commit()
-                            st.success("✅ تم حذف المستخدم")
-                            st.rerun()
+    if users:
+        st.subheader("👥 المستخدمون")
+        for user in users:
+            with st.expander(f"👤 {user['full_name']} - {user['username']}"):
+                st.markdown(f"المستوى: {user['level']} | المشرف: {user['mentor']}")
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    if st.button(f"📝 تعديل {user['username']}", key=f"edit_user_{user['id']}"):
+                        new_full_name = st.text_input("الاسم الكامل", value=user['full_name'], key=f"full_name_user_{user['id']}")
+                        level_names = [lvl['level_name'] for lvl in levels]
+                        new_level = st.selectbox("المستوى", level_names, index=level_names.index(user['level']) if user['level'] in level_names else 0, key=f"level_user_{user['id']}")
+                        new_mentor = st.selectbox("المشرف", [user['mentor'] for user in users], key=f"mentor_user_{user['id']}")
+                        if st.button(f"تحديث", key=f"update_user_{user['id']}"):
+                            cursor.execute("SELECT 1 FROM users WHERE id != %s AND (username = %s OR full_name = %s)", (user['id'], new_full_name, new_full_name))
+                            conflict_user = cursor.fetchone()
+                            cursor.execute("SELECT 1 FROM admins WHERE username = %s OR full_name = %s", (new_full_name, new_full_name))
+                            conflict_admin = cursor.fetchone()
+                            if conflict_user or conflict_admin:
+                                st.warning("⚠️ الاسم الكامل لا يجب أن يطابق أي اسم مستخدم، والعكس كذلك.")
+                            else:
+                                cursor.execute("UPDATE users SET full_name = %s, level = %s, mentor = %s WHERE id = %s", (new_full_name, new_level, new_mentor, user['id']))
+                                conn.commit()
+                                st.success("✅ تم التحديث")
+                                st.rerun()
+                with col2:
+                    if st.button(f"🗑️ حذف {user['username']}", key=f"delete_user_{user['id']}"):
+                        cursor.execute("UPDATE users SET is_deleted = TRUE WHERE id = %s", (user['id'],))
+                        conn.commit()
+                        st.success("✅ تم حذف المستخدم")
+                        st.rerun()
+
+
+
+
 
 
     # 🧑‍💼 إضافة آدمن مرتبط بمستوى
