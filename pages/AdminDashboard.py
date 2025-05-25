@@ -54,7 +54,7 @@ with tabs[0]:
     with st.form("add_user_form"):
         username = st.text_input("اسم المستخدم")
         full_name = st.text_input("الاسم الكامل")
-                password = st.text_input("كلمة المرور", type="password")
+        password = st.text_input("كلمة المرور", type="password")
         mentor = st.selectbox("المشرف", mentor_options)
         submit = st.form_submit_button("إضافة")
 
