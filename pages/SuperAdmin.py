@@ -26,14 +26,13 @@ conn = pymysql.connect(
 )
 cursor = conn.cursor(pymysql.cursors.DictCursor)
 
-# التحقق من تسجيل الدخول
-if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
+if "authenticated" not in st.session_state or not st.session_state.get("authenticated"):
     st.warning("🔐 يجب تسجيل الدخول أولاً")
-    st.stop()
+    st.switch_page("SuperAdmin.py")
 
-if st.session_state["permissions"] != "super_admin":
-    st.error("🚫 لا تملك صلاحية الوصول إلى هذه الصفحة.")
-    st.stop()
+if st.session_state.get("permissions") != "الصلاحية_المطلوبة":
+    st.warning("🚫 لا تملك صلاحية الوصول لهذه الصفحة.")
+    st.switch_page("home.py")
 
 st.title("🎛️ لوحة تحكم المدير العام")
 
