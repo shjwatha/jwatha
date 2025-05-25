@@ -11,15 +11,14 @@ if "authenticated" not in st.session_state or not st.session_state["authenticate
 st.set_page_config(layout="wide", page_title="⚙️ إعدادات المستخدم")
 
 # ===== ضبط اتجاه النص من اليمين لليسار =====
-st.markdown(\"\"\"
+st.markdown("""
 <style>
 body {
     direction: rtl;
     text-align: right;
 }
 </style>
-\"\"\", unsafe_allow_html=True)
-
+""", unsafe_allow_html=True)
 
 # ===== الاتصال بقاعدة بيانات MySQL =====
 try:
