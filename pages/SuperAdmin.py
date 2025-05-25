@@ -28,11 +28,11 @@ cursor = conn.cursor(pymysql.cursors.DictCursor)
 
 if "authenticated" not in st.session_state or not st.session_state.get("authenticated"):
     st.warning("🔐 يجب تسجيل الدخول أولاً")
-    st.switch_page("SuperAdmin.py")
+    st.switch_page("home.py")
 
 if st.session_state.get("permissions") != "الصلاحية_المطلوبة":
     st.warning("🚫 لا تملك صلاحية الوصول لهذه الصفحة.")
-    st.switch_page("home.py")
+    st.switch_page("SuperAdmin.py")
 
 st.title("🎛️ لوحة تحكم المدير العام")
 
