@@ -52,9 +52,9 @@ with tabs[0]:
     st.subheader("➕ إضافة مستخدم جديد")
 
     with st.form("add_user_form"):
-        full_name = st.text_input("الاسم الكامل")
         username = st.text_input("اسم المستخدم")
-        password = st.text_input("كلمة المرور", type="password")
+        full_name = st.text_input("الاسم الكامل")
+                password = st.text_input("كلمة المرور", type="password")
         mentor = st.selectbox("المشرف", mentor_options)
         submit = st.form_submit_button("إضافة")
 
