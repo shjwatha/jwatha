@@ -5,6 +5,19 @@ import pymysql
 st.set_page_config(page_title="تسجيل الدخول", page_icon="🔐")
 st.title("🔐 تسجيل الدخول")
 
+
+# ===== ضبط اتجاه النص من اليمين لليسار =====
+st.markdown("""
+<style>
+body {
+    direction: rtl;
+    text-align: right;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+
 # الاتصال بقاعدة بيانات MySQL
 try:
     conn = pymysql.connect(
