@@ -12,16 +12,6 @@ if "authenticated" not in st.session_state or st.session_state["permissions"] !=
 admin_level = st.session_state["level"]
 
 
-# ===== ضبط اتجاه النص من اليمين لليسار =====
-st.markdown("""
-<style>
-body {
-    direction: rtl;
-    text-align: right;
-}
-</style>
-""", unsafe_allow_html=True)
-
 
 
 # الاتصال بقاعدة بيانات MySQL
