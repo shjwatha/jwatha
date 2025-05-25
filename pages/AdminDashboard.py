@@ -111,35 +111,51 @@ with tabs[1]:
 # ===================== التبويب الثالث: إضافة 20 مستخدم دفعة واحدة =====================
 with tabs[2]:
     st.subheader("📥 إضافة 20 مستخدم دفعة واحدة")
-    st.markdown("يرجى إدخال بيانات كل مستخدم في سطر جديد على الشكل التالي:")
-    st.code("الاسم الكامل,اسم المستخدم,كلمة المرور,اسم المشرف")
 
-    bulk_input = st.text_area("📋 لصق البيانات هنا", height=300)
-    submit_bulk = st.button("🚀 إضافة المستخدمين")
+    st.markdown("أدخل بيانات كل مستخدم في صف خاص به.")
 
-    if submit_bulk:
-        lines = bulk_input.strip().split("\n")
+    if "bulk_reset" not in st.session_state:
+        for i in range(20):
+            st.session_state[f"username_{i}"] = ""
+            st.session_state[f"fullname_{i}"] = ""
+            st.session_state[f"password_{i}"] = ""
+
+    bulk_data = []
+    for i in range(20):
+        st.markdown(f"#### 👤 المستخدم رقم {i+1}")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            username = st.text_input(f"اسم المستخدم {i+1}", key=f"username_{i}")
+        with col2:
+            full_name = st.text_input(f"الاسم الكامل {i+1}", key=f"fullname_{i}")
+        with col3:
+            password = st.text_input(f"كلمة المرور {i+1}", type="password", key=f"password_{i}")
+        with col4:
+            mentor = st.selectbox(f"المشرف {i+1}", mentor_options, key=f"mentor_{i}")
+
+        bulk_data.append({
+            "username": username.strip(),
+            "full_name": full_name.strip(),
+            "password": password.strip(),
+            "mentor": mentor.strip()
+        })
+
+    if st.button("🚀 إضافة المستخدمين دفعة واحدة"):
         success_count = 0
         errors = []
 
-        for i, line in enumerate(lines, start=1):
-            parts = [p.strip() for p in line.split(",")]
-            if len(parts) != 4:
-                errors.append(f"السطر {i}: صيغة غير صحيحة")
+        for i, user in enumerate(bulk_data, start=1):
+            username = user["username"]
+            full_name = user["full_name"]
+            password = user["password"]
+            mentor = user["mentor"]
+
+            if not all([username, full_name, password, mentor]):
+                errors.append(f"المستخدم {i}: جميع الحقول مطلوبة")
                 continue
 
-            full_name, username, password, mentor = parts
-
-            if not all([full_name, username, password, mentor]):
-                errors.append(f"السطر {i}: جميع الحقول مطلوبة")
-                continue
-
-            if full_name in all_existing_names or username in all_existing_names:
-                errors.append(f"السطر {i}: الاسم الكامل أو اسم المستخدم مستخدم مسبقًا")
-                continue
-
-            if mentor not in mentor_options:
-                errors.append(f"السطر {i}: اسم المشرف غير موجود ضمن الخيارات")
+            if username in all_existing_names or full_name in all_existing_names:
+                errors.append(f"المستخدم {i}: الاسم الكامل أو اسم المستخدم مستخدم مسبقًا")
                 continue
 
             try:
@@ -148,11 +164,17 @@ with tabs[2]:
                     VALUES (%s, %s, %s, %s, %s)
                 """, (full_name, username, password, mentor, admin_level))
                 conn.commit()
-                all_existing_names.update([full_name, username])
+                all_existing_names.update([username, full_name])
                 success_count += 1
             except Exception as e:
-                errors.append(f"السطر {i}: خطأ أثناء الإدخال - {str(e)}")
+                errors.append(f"المستخدم {i}: خطأ أثناء الإدخال - {str(e)}")
 
         st.success(f"✅ تم إضافة {success_count} مستخدم بنجاح.")
         if errors:
             st.error("\n".join(errors))
+
+        # تفريغ الحقول بعد الإضافة
+        for i in range(20):
+            st.session_state[f"username_{i}"] = ""
+            st.session_state[f"fullname_{i}"] = ""
+            st.session_state[f"password_{i}"] = ""
