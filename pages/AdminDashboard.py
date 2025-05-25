@@ -4,10 +4,14 @@ import pandas as pd
 
 st.set_page_config(page_title="لوحة آدمن المستوى", page_icon="🛠️")
 
-# تحقق من الجلسة
-if "authenticated" not in st.session_state or st.session_state["permissions"] != "admin":
-    st.error("❌ لا تملك صلاحية الوصول إلى هذه الصفحة.")
-    st.stop()
+
+# التحقق من الجلسة والصلاحية
+if (
+    "authenticated" not in st.session_state or not st.session_state["authenticated"] or
+    "permissions" not in st.session_state or st.session_state["permissions"] != "admin"
+):
+    st.warning("🔐 يجب تسجيل الدخول أولاً أو لا تملك صلاحية الوصول.")
+    st.switch_page("home.py")
 
 admin_level = st.session_state["level"]
 
