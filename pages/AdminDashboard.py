@@ -82,8 +82,8 @@ with tabs[1]:
         selected_user = st.selectbox("اختر مستخدمًا", users_df["username"])
         selected_user_data = users_df[users_df["username"] == selected_user].iloc[0]
 
-        new_full_name = st.text_input("الاسم الكامل", value=selected_user_data["full_name"])
         new_username = st.text_input("اسم المستخدم", value=selected_user_data["username"])
+        new_full_name = st.text_input("الاسم الكامل", value=selected_user_data["full_name"])
         new_password = st.text_input("كلمة المرور الجديدة (اختياري)", type="password")
 
         if st.button("💾 حفظ التعديلات"):
