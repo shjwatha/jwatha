@@ -6,6 +6,18 @@ import pandas as pd
 st.set_page_config(layout="wide", page_title="📊 جلب المعلومات")
 st.title("📊 جلب المعلومات من قاعدة البيانات")
 
+# ===== ضبط اتجاه النص من اليمين لليسار =====
+st.markdown("""
+<style>
+body {
+    direction: rtl;
+    text-align: right;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+
 # ===== شعار قابل للنقر =====
 st.markdown("""
 <style>
