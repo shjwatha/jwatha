@@ -27,23 +27,13 @@ body {
 
 # التحقق من الجلسة
 if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
-    st.error("❌ يجب تسجيل الدخول أولاً.")
-    st.stop()
+    st.warning("🔐 يجب تسجيل الدخول أولاً")
+    st.switch_page("home.py")
 
-if "username" not in st.session_state:
-    st.error("❌ بيانات المستخدم غير متاحة.")
-    st.stop()
+if st.session_state.get("permissions") != "user":
+    st.warning("🚫 لا تملك صلاحية الوصول لهذه الصفحة.")
+    st.switch_page("home.py")
 
-if st.session_state["permissions"] != "user":
-    if st.session_state["permissions"] == "admin":
-        st.warning("تم تسجيل الدخول كأدمن، سيتم تحويلك للوحة التحكم...")
-        st.switch_page("pages/AdminDashboard.py")
-    elif st.session_state["permissions"] in ["supervisor", "sp"]:
-        st.warning("تم تسجيل الدخول كمشرف، سيتم تحويلك للتقارير...")
-        st.switch_page("pages/Supervisor.py")
-    else:
-        st.error("⚠️ صلاحية غير معروفة.")
-    st.stop()
 
 username = st.session_state["username"]
 
