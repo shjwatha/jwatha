@@ -23,15 +23,14 @@ body {
 
 
 if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
-    st.error("🚫 الرجاء تسجيل الدخول.")
-    st.stop()
+    st.warning("🔐 يجب تسجيل الدخول أولاً")
+    st.switch_page("home.py")
 
-username = st.session_state.get("username", "")
 permissions = st.session_state.get("permissions", "")
 
 if permissions not in ["supervisor", "sp"]:
-    st.error("🚫 لا تملك صلاحية الوصول لهذه الصفحة.")
-    st.stop()
+    st.warning("🚫 لا تملك صلاحية الوصول لهذه الصفحة.")
+    st.switch_page("home.py")
 
 st.title(f"👋 أهلاً {username}")
 
