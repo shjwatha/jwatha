@@ -87,8 +87,13 @@ with tabs[1]:
         new_password = st.text_input("كلمة المرور الجديدة (اختياري)", type="password")
 
         if st.button("💾 حفظ التعديلات"):
-            if (new_full_name != selected_user_data["full_name"] and new_full_name in all_existing_names) or \
-               (new_username != selected_user_data["username"] and new_username in all_existing_names):
+            conflict = False
+            if new_full_name != selected_user_data["full_name"] and new_full_name in all_existing_names:
+                conflict = True
+            if new_username != selected_user_data["username"] and new_username in all_existing_names:
+                conflict = True
+
+            if conflict:
                 st.error("❌ لا يمكن أن يتطابق الاسم الكامل مع اسم مستخدم أو العكس.")
             else:
                 cursor.execute("""
