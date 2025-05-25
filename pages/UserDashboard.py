@@ -12,6 +12,19 @@ riyadh_tz = pytz.timezone("Asia/Riyadh")
 # ===================== إعداد الصفحة والتحقق من الجلسة =====================
 st.set_page_config(page_title="تقييم اليوم", page_icon="📋", layout="wide")
 
+
+# ===== ضبط اتجاه النص من اليمين لليسار =====
+st.markdown("""
+<style>
+body {
+    direction: rtl;
+    text-align: right;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+
 # التحقق من الجلسة
 if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
     st.error("❌ يجب تسجيل الدخول أولاً.")
