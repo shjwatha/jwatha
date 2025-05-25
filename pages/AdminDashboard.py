@@ -26,21 +26,27 @@ cursor = conn.cursor(pymysql.cursors.DictCursor)
 cursor.execute("SELECT * FROM users WHERE level = %s AND is_deleted = 0", (st.session_state["level"],))
 users = cursor.fetchall()
 
-st.subheader("📋 قائمة المستخدمين في نفس المستوى")
+st.subheader("📋 المستخدمون في نفس المستوى")
 if not users:
-    st.info("لا يوجد مستخدمون في هذا المستوى.")
+    st.info("لا يوجد مستخدمون حتى الآن.")
 else:
-    for user in users:
-        with st.expander(f"👤 {user['full_name']} - {user['username']}"):
-            st.markdown(f"**المشرف:** {user['mentor']}")
-            new_password = st.text_input("🔑 كلمة مرور جديدة", type="password", key=f"pw_{user['id']}")
-            if st.button("تحديث كلمة المرور", key=f"update_pw_{user['id']}"):
-                if new_password:
-                    cursor.execute("UPDATE users SET password = %s WHERE id = %s", (new_password, user['id']))
-                    conn.commit()
-                    st.success("✅ تم تحديث كلمة المرور.")
-                else:
-                    st.warning("⚠️ يرجى إدخال كلمة مرور جديدة.")
+    df = pd.DataFrame(users)[["full_name", "username", "mentor"]]
+    df.columns = ["الاسم الكامل", "اسم المستخدم", "المشرف"]
+    st.dataframe(df, use_container_width=True)
+
+# تعديل كلمة مرور المستخدمين
+st.subheader("🔒 تعديل كلمة مرور مستخدم")
+user_options = [f"{u['full_name']} ({u['username']})" for u in users]
+selected_user = st.selectbox("اختر مستخدمًا لتعديل كلمة المرور", user_options)
+new_password = st.text_input("كلمة المرور الجديدة", type="password")
+if st.button("تحديث كلمة المرور"):
+    if new_password:
+        selected_username = selected_user.split("(")[-1].replace(")", "").strip()
+        cursor.execute("UPDATE users SET password = %s WHERE username = %s", (new_password, selected_username))
+        conn.commit()
+        st.success("✅ تم تحديث كلمة المرور.")
+    else:
+        st.warning("⚠️ يرجى إدخال كلمة مرور جديدة.")
 
 # إضافة مستخدم جديد
 st.subheader("➕ إضافة مستخدم جديد")
@@ -57,7 +63,7 @@ with st.form("add_user_form"):
         else:
             cursor.execute("SELECT 1 FROM users WHERE username = %s OR full_name = %s", (username, full_name))
             if cursor.fetchone():
-                st.error("❌ الاسم الكامل أو اسم المستخدم مستخدم بالفعل.")
+                st.error("❌ الاسم الكامل أو اسم المستخدم مستخدم مسبقًا.")
             else:
                 cursor.execute("""
                     INSERT INTO users (full_name, username, password, mentor, level)
